@@ -1,48 +1,75 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+"use client";
 
-export default async function InboxPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+import { useState } from "react";
+import { EmailList } from "@/components/email/EmailList";
+import { EmailThreadView } from "@/components/email/EmailThread";
+import { ComposeModal } from "@/components/compose/ComposeModal";
+import { Button } from "@/components/ui/Button";
+import { MOCK_THREADS, EmailThread } from "@/lib/mock-data";
 
-  if (!user) {
-    redirect("/login");
-  }
+export default function InboxPage() {
+  const [threads] = useState<EmailThread[]>(MOCK_THREADS);
+  const [selected, setSelected] = useState<EmailThread | null>(null);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const unreadCount = threads.filter((t) => t.unread).length;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">✉️</span>
-          <h1 className="text-lg font-semibold text-gray-900">KHU Mail</h1>
+    <div className="flex h-full">
+      {/* Email list panel — hidden on mobile when thread is open */}
+      <div
+        className={`flex flex-col border-r border-gray-200 bg-white ${
+          selected ? "hidden md:flex w-80 lg:w-96" : "flex w-full md:w-80 lg:w-96"
+        }`}
+      >
+        {/* Panel header */}
+        <div className="flex items-center justify-between px-4 py-3.5 border-b border-gray-100">
+          <div>
+            <h1 className="font-semibold text-gray-900 text-sm">Inbox</h1>
+            {unreadCount > 0 && (
+              <p className="text-xs text-gray-400">{unreadCount} unread</p>
+            )}
+          </div>
+          <Button variant="primary" size="sm" onClick={() => setComposeOpen(true)}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Compose
+          </Button>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-600">{user.email}</span>
-          <form action="/auth/signout" method="post">
-            <button
-              type="submit"
-              className="text-sm text-gray-500 hover:text-gray-700"
-            >
-              Sign out
-            </button>
-          </form>
-        </div>
-      </header>
 
-      <main className="max-w-4xl mx-auto px-6 py-12 text-center">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12">
-          <div className="text-5xl mb-4">🚧</div>
-          <h2 className="text-2xl font-semibold text-gray-900 mb-2">
-            Gmail integration coming soon
-          </h2>
-          <p className="text-gray-600">
-            You&apos;re signed in as <strong>{user.email}</strong>. Gmail fetch
-            and AI summarization will be wired up in Milestone 2.
-          </p>
+        {/* List */}
+        <div className="flex-1 overflow-y-auto">
+          <EmailList
+            threads={threads}
+            selectedId={selected?.id ?? null}
+            onSelect={setSelected}
+          />
         </div>
-      </main>
+      </div>
+
+      {/* Thread view */}
+      {selected ? (
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <EmailThreadView
+            thread={selected}
+            onBack={() => setSelected(null)}
+          />
+        </div>
+      ) : (
+        <div className="hidden md:flex flex-1 items-center justify-center bg-gray-50">
+          <div className="text-center">
+            <div className="text-4xl mb-3">✉️</div>
+            <p className="text-gray-400 text-sm">Select an email to read</p>
+          </div>
+        </div>
+      )}
+
+      {/* Compose modal */}
+      <ComposeModal
+        open={composeOpen}
+        onClose={() => setComposeOpen(false)}
+        mode="new"
+      />
     </div>
   );
 }

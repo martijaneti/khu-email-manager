@@ -11,8 +11,10 @@ export interface EmailThread {
   };
   messages: EmailMessage[];
   unread: boolean;
+  starred?: boolean;
   labels: string[];
   hasAttachments: boolean;
+  aiSummary?: string;
 }
 
 export interface EmailMessage {
@@ -41,8 +43,10 @@ export const MOCK_THREADS: EmailThread[] = [
     subject: "Q2 Partnership Proposal — Follow-up needed",
     participants: ["Sarah Chen", "you"],
     unread: true,
+    starred: true,
     labels: ["important"],
     hasAttachments: true,
+    aiSummary: "Sarah is following up on last week's partnership proposal and has attached an updated version with revised pricing. She's looking for a response on the terms.",
     lastMessage: {
       from: "Sarah Chen",
       fromEmail: "sarah@acmecorp.com",
@@ -139,6 +143,7 @@ The Stripe Team`,
     unread: true,
     labels: [],
     hasAttachments: false,
+    aiSummary: "Team standup notes covering blockers (design review, flaky CI), completed items (v2.1 launch, auth fix), and today's action items for Alex, Priya, and you (quarterly report draft).",
     lastMessage: {
       from: "Alex Kim",
       fromEmail: "alex@team.com",

@@ -219,6 +219,20 @@ export function EmailThreadView({ thread, onBack, onToggleStar }: EmailThreadPro
       {/* AI Summary */}
       {thread.aiSummary && <AISummaryCard summary={thread.aiSummary} />}
 
+      {/* Thread meta: message count + read time */}
+      {(() => {
+        const totalWords = thread.messages.reduce((sum, m) => sum + m.body.split(/\s+/).filter(Boolean).length, 0);
+        const readMins = Math.max(1, Math.ceil(totalWords / 200));
+        return (
+          <div className="mx-5 mt-3 flex items-center gap-3 text-xs text-gray-400">
+            {thread.messages.length > 1 && (
+              <span>{thread.messages.length} messages</span>
+            )}
+            <span>~{readMins} min read</span>
+          </div>
+        );
+      })()}
+
       {/* Message count badge for multi-message threads */}
       {thread.messages.length > 1 && (
         <div className="mx-5 mt-3 flex items-center gap-2">

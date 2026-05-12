@@ -9,6 +9,23 @@ interface EmptyState {
   subtitle: string;
 }
 
+function getDateGroup(date: Date): string {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getTime() - 86400000);
+  const weekAgo = new Date(today.getTime() - 7 * 86400000);
+  const monthAgo = new Date(today.getTime() - 30 * 86400000);
+
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  if (d >= today) return "Today";
+  if (d >= yesterday) return "Yesterday";
+  if (d >= weekAgo) return "This week";
+  if (d >= monthAgo) return "This month";
+  return "Older";
+}
+
+const GROUP_ORDER = ["Today", "Yesterday", "This week", "This month", "Older"];
+
 function Highlight({ text, query }: { text: string; query: string }) {
   if (!query.trim()) return <>{text}</>;
   const idx = text.toLowerCase().indexOf(query.toLowerCase());
@@ -81,9 +98,22 @@ export function EmailList({
     );
   }
 
+  // Group threads by date bucket
+  const grouped = GROUP_ORDER.map((label) => ({
+    label,
+    items: threads.filter((t) => getDateGroup(t.lastMessage.date) === label),
+  })).filter((g) => g.items.length > 0);
+
   return (
     <div className="divide-y divide-gray-100">
-      {threads.map((thread) => {
+      {grouped.map(({ label, items }) => (
+        <div key={label}>
+          <div className="px-4 py-1.5 bg-gray-50 border-b border-gray-100">
+            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+              {label}
+            </span>
+          </div>
+          {items.map((thread) => {
         const isSelected = selectedId === thread.id;
         const isChecked = checkedIds?.has(thread.id) ?? false;
         const initials = getInitials(thread.lastMessage.from);
@@ -245,6 +275,8 @@ export function EmailList({
           </div>
         );
       })}
+        </div>
+      ))}
     </div>
   );
 }

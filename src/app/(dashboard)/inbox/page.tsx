@@ -12,13 +12,14 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useToast } from "@/context/ToastContext";
 import { useInboxContext } from "@/context/InboxContext";
 
-type FilterTab = "all" | "unread" | "attachments" | "starred";
+type FilterTab = "all" | "unread" | "attachments" | "starred" | "important";
 
 const EMPTY_STATE: Record<FilterTab, { icon: string; title: string; subtitle: string }> = {
   all: { icon: "📭", title: "Inbox zero!", subtitle: "You're all caught up." },
   unread: { icon: "✅", title: "All caught up!", subtitle: "No unread emails." },
   attachments: { icon: "📎", title: "No attachments", subtitle: "Emails with files appear here." },
   starred: { icon: "⭐", title: "No starred emails", subtitle: "Press S to star an email." },
+  important: { icon: "🏷️", title: "Nothing marked important", subtitle: "Important emails appear here." },
 };
 
 const MIN_LIST_WIDTH = 260;
@@ -118,6 +119,7 @@ export default function InboxPage() {
     if (activeTab === "unread") result = result.filter((t) => t.unread);
     if (activeTab === "attachments") result = result.filter((t) => t.hasAttachments);
     if (activeTab === "starred") result = result.filter((t) => t.starred);
+    if (activeTab === "important") result = result.filter((t) => t.labels.includes("important"));
     return result;
   }, [threads, search, activeTab]);
 
@@ -261,6 +263,7 @@ export default function InboxPage() {
 
   const unreadCount = threads.filter((t) => t.unread).length;
   const starredCount = threads.filter((t) => t.starred).length;
+  const importantCount = threads.filter((t) => t.labels.includes("important")).length;
 
   useEffect(() => {
     document.title = unreadCount > 0 ? `(${unreadCount}) KHU Mail` : "KHU Mail";
@@ -350,8 +353,9 @@ export default function InboxPage() {
   const tabs: { id: FilterTab; label: string; count?: number }[] = [
     { id: "all", label: "All" },
     { id: "unread", label: "Unread", count: unreadCount },
-    { id: "attachments", label: "Attachments" },
+    { id: "important", label: "Important", count: importantCount || undefined },
     { id: "starred", label: "Starred", count: starredCount || undefined },
+    { id: "attachments", label: "Attach." },
   ];
 
   const emptyState = EMPTY_STATE[activeTab];

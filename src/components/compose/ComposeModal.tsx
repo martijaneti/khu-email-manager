@@ -142,12 +142,14 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBo
   const [subject, setSubject] = useState(replyTo ? `Re: ${replyTo.subject}` : "");
   const [body, setBody] = useState(initialBody ?? "");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [sending, setSending] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
   const [sent, setSent] = useState(false);
   const [showCcBcc, setShowCcBcc] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
+  const [showEmoji, setShowEmoji] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const emojiRef = useRef<HTMLDivElement>(null);
 
   // Restore draft on open (skip if quick reply body was provided)
   useEffect(() => {
@@ -216,7 +218,40 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBo
     setAttachments((prev) => prev.filter((a) => a.id !== id));
   }
 
+  // Countdown → send effect (decrements 1/s, triggers send at 0)
+  useEffect(() => {
+    if (countdown === null) return;
+    if (countdown <= 0) {
+      clearDraft();
+      setSent(true);
+      setTimeout(() => {
+        setSent(false);
+        setCountdown(null);
+        setBody("");
+        setCc("");
+        setBcc("");
+        setAttachments([]);
+        setDraftRestored(false);
+        onClose();
+      }, 1400);
+      return;
+    }
+    const timer = setTimeout(() => setCountdown((c) => (c !== null ? c - 1 : null)), 1000);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countdown]);
+
+  function handleSend() {
+    if (!body.trim()) return;
+    setCountdown(5);
+  }
+
+  function handleUndo() {
+    setCountdown(null);
+  }
+
   function handleDiscard() {
+    setCountdown(null);
     clearDraft();
     setBody("");
     setCc("");
@@ -226,30 +261,24 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBo
     onClose();
   }
 
-  async function handleSend() {
-    setSending(true);
-    // Placeholder — will call /api/emails/send in Milestone 4
-    await new Promise((r) => setTimeout(r, 800));
-    clearDraft();
-    setSent(true);
-    setTimeout(() => {
-      setSent(false);
-      setSending(false);
-      setBody("");
-      setCc("");
-      setBcc("");
-      setAttachments([]);
-      setDraftRestored(false);
-      onClose();
-    }, 1200);
+  function insertEmoji(emoji: string) {
+    const ta = textareaRef.current;
+    if (!ta) { setBody((b) => b + emoji); setShowEmoji(false); return; }
+    const { selectionStart: s, selectionEnd: e, value } = ta;
+    const newVal = value.slice(0, s) + emoji + value.slice(e);
+    setBody(newVal);
+    setShowEmoji(false);
+    requestAnimationFrame(() => {
+      ta.setSelectionRange(s + emoji.length, s + emoji.length);
+      ta.focus();
+    });
   }
 
+  const isCounting = countdown !== null && countdown > 0;
   const sendLabel = sent
     ? "Sent!"
-    : sending
-    ? sendMode === "now"
-      ? "Sending…"
-      : "Scheduling…"
+    : isCounting
+    ? `Sending in ${countdown}…`
     : sendMode === "now"
     ? "Send"
     : "Schedule";
@@ -349,6 +378,36 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBo
             <FormatButton title="Horizontal rule" onClick={() => insertFormatting(textareaRef.current!, null, "\n---\n", setBody)}>
               —
             </FormatButton>
+            <div className="w-px h-4 bg-gray-200 mx-1" />
+            {/* Emoji picker */}
+            <div className="relative" ref={emojiRef}>
+              <button
+                type="button"
+                title="Insert emoji"
+                onMouseDown={(e) => { e.preventDefault(); setShowEmoji((v) => !v); }}
+                className="px-2 py-1 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded text-sm transition-colors"
+              >
+                😊
+              </button>
+              {showEmoji && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowEmoji(false)} />
+                  <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-2 w-52">
+                    <div className="grid grid-cols-8 gap-0.5">
+                      {["😊","👍","🙏","🎉","💪","🤝","✅","❌","📊","📅","🔥","💡","🚀","⚡","💬","📧","🎯","💼","📌","🔔","⭐","❤️","😂","👋","🙌","✨","😅","🤔"].map((e) => (
+                        <button
+                          key={e}
+                          onMouseDown={(ev) => { ev.preventDefault(); insertEmoji(e); }}
+                          className="text-lg w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 transition-colors"
+                        >
+                          {e}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
           <div className="relative p-3">
             <textarea
@@ -458,50 +517,73 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBo
       </div>
 
       {/* Footer */}
-      <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={(e) => handleFiles(e.target.files)}
-          />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-            </svg>
-            Attach
-          </Button>
-          {attachments.length > 0 && (
-            <span className="text-xs text-gray-400">
-              {attachments.length} file{attachments.length > 1 ? "s" : ""}
-            </span>
-          )}
-        </div>
+      <div className="border-t border-gray-100 bg-gray-50">
+        {/* Countdown bar */}
+        {isCounting && (
+          <div className="relative overflow-hidden h-1 bg-gray-200">
+            <div
+              className="absolute inset-y-0 left-0 bg-blue-500 transition-all"
+              style={{ width: `${((5 - countdown!) / 5) * 100}%`, transitionDuration: "1000ms" }}
+            />
+          </div>
+        )}
+        <div className="px-5 py-3 flex items-center justify-between gap-3">
+          {isCounting ? (
+            /* Countdown mode: show undo button */
+            <div className="flex items-center gap-3 w-full">
+              <span className="text-sm text-gray-600 flex-1">{sendLabel}</span>
+              <Button variant="secondary" size="sm" onClick={handleUndo}>
+                Undo
+              </Button>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => handleFiles(e.target.files)}
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                  </svg>
+                  Attach
+                </Button>
+                {attachments.length > 0 && (
+                  <span className="text-xs text-gray-400">
+                    {attachments.length} file{attachments.length > 1 ? "s" : ""}
+                  </span>
+                )}
+              </div>
 
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" onClick={handleDiscard} disabled={sending}>
-            Discard
-          </Button>
-          <Button
-            variant={sent ? "secondary" : "primary"}
-            size="sm"
-            onClick={handleSend}
-            disabled={sending || !body.trim()}
-            className={sent ? "bg-green-600 text-white hover:bg-green-600" : ""}
-          >
-            {sent && (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            )}
-            {sendLabel}
-          </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="secondary" size="sm" onClick={handleDiscard} disabled={sent}>
+                  Discard
+                </Button>
+                <Button
+                  variant={sent ? "secondary" : "primary"}
+                  size="sm"
+                  onClick={handleSend}
+                  disabled={sent || !body.trim()}
+                  className={sent ? "bg-green-600 text-white hover:bg-green-600" : ""}
+                >
+                  {sent && (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                  {sendLabel}
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </Modal>

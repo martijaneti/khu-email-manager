@@ -328,7 +328,21 @@ export function EmailThreadView({ thread, onBack, onToggleStar, onArchive, onDel
 
   function openForward() {
     setComposeMode("new");
-    setQuickReplyBody(undefined);
+    const dateStr = thread.lastMessage.date.toLocaleString("en-US", {
+      weekday: "short", year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+    });
+    const fwdBody = [
+      "",
+      "",
+      "---------- Forwarded message ---------",
+      `From: ${thread.lastMessage.from} <${thread.lastMessage.fromEmail}>`,
+      `Date: ${dateStr}`,
+      `Subject: ${thread.subject}`,
+      `To: ${thread.participants.filter((p) => p !== thread.lastMessage.from).join(", ") || thread.participants.join(", ")}`,
+      "",
+      thread.lastMessage.body,
+    ].join("\n");
+    setQuickReplyBody(fwdBody);
     setForwardTo({
       email: "",
       name: "",

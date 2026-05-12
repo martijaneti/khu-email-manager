@@ -1,8 +1,31 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { EmailThread, formatRelativeTime, getInitials, getAvatarColor } from "@/lib/mock-data";
 import { useToast } from "@/context/ToastContext";
 import { SwipeableRow } from "./SwipeableRow";
+
+type Density = "compact" | "comfortable" | "cozy";
+const DENSITY_PADDING: Record<Density, string> = {
+  compact: "py-2",
+  comfortable: "py-3.5",
+  cozy: "py-5",
+};
+
+function useDensity(): Density {
+  const [density, setDensity] = useState<Density>("comfortable");
+  useEffect(() => {
+    const stored = localStorage.getItem("khu_density") as Density | null;
+    if (stored) setDensity(stored);
+    const handler = () => {
+      const d = localStorage.getItem("khu_density") as Density | null;
+      if (d) setDensity(d);
+    };
+    window.addEventListener("storage", handler);
+    return () => window.removeEventListener("storage", handler);
+  }, []);
+  return density;
+}
 
 interface EmptyState {
   icon: string;
@@ -86,6 +109,8 @@ export function EmailList({
   emptyState,
 }: EmailListProps) {
   const toast = useToast();
+  const density = useDensity();
+  const rowPadding = DENSITY_PADDING[density];
   const selectionMode = checkedIds && checkedIds.size > 0;
 
   if (threads.length === 0) {
@@ -130,7 +155,7 @@ export function EmailList({
             } : undefined}
           >
           <div
-            className={`relative flex gap-3 items-start px-4 py-3.5 cursor-pointer transition-colors group ${
+            className={`relative flex gap-3 items-start px-4 ${rowPadding} cursor-pointer transition-colors group ${
               isChecked
                 ? "bg-blue-50"
                 : isSelected

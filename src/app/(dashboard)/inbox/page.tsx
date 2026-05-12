@@ -95,13 +95,30 @@ export default function InboxPage() {
     const interval = setInterval(() => {
       const newEmail = generateNewEmail();
       setThreads((prev) => [newEmail, ...prev]);
-      toast.show(`New message from ${newEmail.lastMessage.from}`, "info", {
-        label: "Open",
-        onClick: () => {
-          setSelected(newEmail);
-          setThreads((prev) => prev.map((t) => t.id === newEmail.id ? { ...t, unread: false } : t));
-        },
-      });
+
+      // Toast notification
+      if (localStorage.getItem("khu_notif_toast") !== "false") {
+        toast.show(`New message from ${newEmail.lastMessage.from}`, "info", {
+          label: "Open",
+          onClick: () => {
+            setSelected(newEmail);
+            setThreads((prev) => prev.map((t) => t.id === newEmail.id ? { ...t, unread: false } : t));
+          },
+        });
+      }
+
+      // Desktop notification
+      if (
+        localStorage.getItem("khu_notif_desktop") === "true" &&
+        typeof Notification !== "undefined" &&
+        Notification.permission === "granted"
+      ) {
+        new Notification(`New email from ${newEmail.lastMessage.from}`, {
+          body: newEmail.lastMessage.preview,
+          icon: "/favicon.ico",
+          tag: newEmail.id,
+        });
+      }
     }, 45000);
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps

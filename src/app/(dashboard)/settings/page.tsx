@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -52,13 +52,60 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+type Density = "compact" | "comfortable" | "cozy";
+
 export default function SettingsPage() {
-  const [notifyNewEmail, setNotifyNewEmail] = useState(true);
+  const [notifyNewEmail, setNotifyNewEmail] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("khu_notif_toast") !== "false" : true
+  );
+  const [desktopNotif, setDesktopNotif] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("khu_notif_desktop") === "true" : false
+  );
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission | "unsupported">("default");
   const [notifyFollowup, setNotifyFollowup] = useState(true);
-  const [autoMarkRead, setAutoMarkRead] = useState(true);
+  const [autoMarkRead, setAutoMarkRead] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("khu_auto_read") !== "false" : true
+  );
   const [aiSummary, setAiSummary] = useState(true);
+  const [density, setDensity] = useState<Density>(() =>
+    (typeof window !== "undefined" ? (localStorage.getItem("khu_density") as Density) : null) ?? "comfortable"
+  );
   const [composeSignature, setComposeSignature] = useState(false);
   const [signature, setSignature] = useState("Best,\nMarti");
+
+  useEffect(() => {
+    if (!("Notification" in window)) {
+      setNotifPermission("unsupported");
+    } else {
+      setNotifPermission(Notification.permission);
+    }
+  }, []);
+
+  function handleToastToggle(v: boolean) {
+    setNotifyNewEmail(v);
+    localStorage.setItem("khu_notif_toast", String(v));
+  }
+
+  async function handleDesktopToggle(v: boolean) {
+    if (!("Notification" in window)) return;
+    if (v && Notification.permission !== "granted") {
+      const perm = await Notification.requestPermission();
+      setNotifPermission(perm);
+      if (perm !== "granted") { return; }
+    }
+    setDesktopNotif(v);
+    localStorage.setItem("khu_notif_desktop", String(v));
+  }
+
+  function handleAutoReadToggle(v: boolean) {
+    setAutoMarkRead(v);
+    localStorage.setItem("khu_auto_read", String(v));
+  }
+
+  function handleDensityChange(d: Density) {
+    setDensity(d);
+    localStorage.setItem("khu_density", d);
+  }
 
   return (
     <div className="flex flex-col h-full overflow-y-auto bg-gray-50">
@@ -89,9 +136,24 @@ export default function SettingsPage() {
         <Section title="Notifications">
           <SettingRow
             label="New email toast"
-            description="Show a toast when a new email arrives"
+            description="Show an in-app toast when a new email arrives"
           >
-            <Toggle checked={notifyNewEmail} onChange={setNotifyNewEmail} />
+            <Toggle checked={notifyNewEmail} onChange={handleToastToggle} />
+          </SettingRow>
+          <SettingRow
+            label="Desktop notifications"
+            description={
+              notifPermission === "unsupported"
+                ? "Not supported in this browser"
+                : notifPermission === "denied"
+                ? "Permission denied — allow in browser settings"
+                : "Send OS notifications for new emails"
+            }
+          >
+            <Toggle
+              checked={desktopNotif && notifPermission === "granted"}
+              onChange={handleDesktopToggle}
+            />
           </SettingRow>
           <SettingRow
             label="Follow-up reminders"
@@ -107,13 +169,31 @@ export default function SettingsPage() {
             label="Auto-mark as read"
             description="Mark emails as read when you open them"
           >
-            <Toggle checked={autoMarkRead} onChange={setAutoMarkRead} />
+            <Toggle checked={autoMarkRead} onChange={handleAutoReadToggle} />
           </SettingRow>
           <SettingRow
             label="AI summaries"
             description="Show AI-generated summaries at the top of threads"
           >
             <Toggle checked={aiSummary} onChange={setAiSummary} />
+          </SettingRow>
+          <SettingRow
+            label="Email density"
+            description="Adjust spacing in the email list"
+          >
+            <div className="flex bg-gray-100 rounded-lg p-0.5">
+              {(["compact", "comfortable", "cozy"] as Density[]).map((d) => (
+                <button
+                  key={d}
+                  onClick={() => handleDensityChange(d)}
+                  className={`px-2.5 py-1 text-xs rounded-md font-medium capitalize transition-colors ${
+                    density === d ? "bg-white shadow-sm text-gray-800" : "text-gray-500"
+                  }`}
+                >
+                  {d}
+                </button>
+              ))}
+            </div>
           </SettingRow>
         </Section>
 

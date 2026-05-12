@@ -71,6 +71,41 @@ function StarIcon({ filled }: { filled?: boolean }) {
   );
 }
 
+function UnsubscribeBanner({ senderEmail }: { senderEmail: string }) {
+  const [dismissed, setDismissed] = useState(false);
+  const [unsubscribed, setUnsubscribed] = useState(false);
+
+  if (dismissed) return null;
+
+  return (
+    <div className="mx-5 mt-4 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-2.5">
+      <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+      </svg>
+      <p className="flex-1 text-xs text-amber-800">
+        {unsubscribed ? `Unsubscribed from ${senderEmail}` : "This looks like a newsletter or promotional email."}
+      </p>
+      {!unsubscribed && (
+        <button
+          onClick={() => setUnsubscribed(true)}
+          className="flex-shrink-0 text-xs font-semibold text-amber-700 hover:text-amber-900 px-2 py-1 rounded hover:bg-amber-100 transition-colors"
+        >
+          Unsubscribe
+        </button>
+      )}
+      <button
+        onClick={() => setDismissed(true)}
+        className="flex-shrink-0 text-amber-400 hover:text-amber-600 transition-colors"
+        aria-label="Dismiss"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 function AISummaryCard({ summary }: { summary: string }) {
   const [dismissed, setDismissed] = useState(false);
   if (dismissed) return null;
@@ -177,6 +212,40 @@ function MessageItem({
   );
 }
 
+function hasUnsubscribeLink(body: string): boolean {
+  return /unsubscribe|opt.?out|email preferences|manage.*subscription/i.test(body);
+}
+
+function printThread(thread: EmailThreadType) {
+  const win = window.open("", "_blank");
+  if (!win) return;
+  win.document.write(`
+    <html><head><title>${thread.subject}</title>
+    <style>
+      body { font-family: Georgia, serif; max-width: 680px; margin: 40px auto; color: #222; }
+      h1 { font-size: 18px; margin-bottom: 4px; }
+      .meta { color: #666; font-size: 13px; margin-bottom: 24px; }
+      .message { border-top: 1px solid #eee; padding-top: 16px; margin-top: 16px; }
+      .from { font-weight: bold; font-size: 14px; }
+      .date { color: #888; font-size: 12px; }
+      .body { font-size: 14px; line-height: 1.7; white-space: pre-wrap; margin-top: 12px; }
+    </style></head><body>
+    <h1>${thread.subject}</h1>
+    <div class="meta">${thread.participants.join(", ")}</div>
+    ${thread.messages
+      .map(
+        (m) => `<div class="message">
+      <div class="from">${m.from} &lt;${m.fromEmail}&gt;</div>
+      <div class="date">${m.date.toLocaleString()}</div>
+      <div class="body">${m.body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
+    </div>`
+      )
+      .join("")}
+  </body></html>`);
+  win.document.close();
+  win.print();
+}
+
 function getQuickReplies(lastBody: string, subject: string): string[] {
   const lower = (lastBody + " " + subject).toLowerCase();
   if (lower.includes("available") || lower.includes("free") || lower.includes("chat") || lower.includes("sync") || lower.includes("call")) {
@@ -252,6 +321,12 @@ export function EmailThreadView({ thread, onBack, onToggleStar }: EmailThreadPro
         </div>
 
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          <Button variant="ghost" size="sm" onClick={() => printThread(thread)} title="Print email">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            <span className="hidden lg:inline">Print</span>
+          </Button>
           <Button variant="ghost" size="sm" onClick={openForward}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -278,6 +353,11 @@ export function EmailThreadView({ thread, onBack, onToggleStar }: EmailThreadPro
           </Button>
         </div>
       </div>
+
+      {/* Unsubscribe banner */}
+      {hasUnsubscribeLink(thread.lastMessage.body) && (
+        <UnsubscribeBanner senderEmail={thread.lastMessage.fromEmail} />
+      )}
 
       {/* AI Summary */}
       {thread.aiSummary && <AISummaryCard summary={thread.aiSummary} />}

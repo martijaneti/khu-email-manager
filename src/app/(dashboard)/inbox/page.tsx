@@ -317,6 +317,17 @@ export default function InboxPage() {
       handler: () => { if (selected) archive(selected.id); },
     },
     {
+      key: "n",
+      description: "Next unread",
+      handler: () => {
+        const startIdx = selectedIdx >= 0 ? selectedIdx + 1 : 0;
+        const nextUnread =
+          filtered.slice(startIdx).find((t) => t.unread) ??
+          filtered.slice(0, startIdx).find((t) => t.unread);
+        if (nextUnread) handleSelect(nextUnread);
+      },
+    },
+    {
       key: "Escape",
       description: "Back / clear selection",
       handler: () => {

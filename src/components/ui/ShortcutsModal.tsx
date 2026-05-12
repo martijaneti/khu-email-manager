@@ -13,6 +13,7 @@ const SHORTCUT_GROUPS = [
     shortcuts: [
       { keys: ["j"], desc: "Next email" },
       { keys: ["k"], desc: "Previous email" },
+      { keys: ["n"], desc: "Next unread" },
       { keys: ["Esc"], desc: "Back to list / clear selection" },
     ],
   },

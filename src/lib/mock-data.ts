@@ -27,6 +27,18 @@ export interface EmailMessage {
   attachments?: { name: string; size: string; type: string }[];
 }
 
+export interface SentEmail {
+  id: string;
+  to: string[];
+  toNames: string[];
+  subject: string;
+  preview: string;
+  body: string;
+  sentAt: Date;
+  hasAttachments: boolean;
+  attachments?: { name: string; size: string; type: string }[];
+}
+
 export interface ScheduledEmail {
   id: string;
   to: string;
@@ -265,6 +277,84 @@ Any time Thursday or Friday works great for me. Let me know!
 Marco`,
       },
     ],
+  },
+];
+
+export const MOCK_SENT: SentEmail[] = [
+  {
+    id: "se1",
+    to: ["sarah@acmecorp.com"],
+    toNames: ["Sarah Chen"],
+    subject: "Re: Q2 Partnership Proposal — Follow-up needed",
+    preview: "Hi Sarah, thanks for following up! I've had a chance to review the proposal and I'm excited about the potential...",
+    body: `Hi Sarah,
+
+Thanks for following up! I've had a chance to review the proposal and I'm excited about the potential here.
+
+The revised pricing looks reasonable. I do have a few questions about the exclusivity clause in section 3 — can we hop on a quick call this week to discuss?
+
+Thursday 2pm or Friday 10am work for me.
+
+Best,
+Marti`,
+    sentAt: new Date(Date.now() - 1000 * 60 * 30),
+    hasAttachments: false,
+  },
+  {
+    id: "se2",
+    to: ["alex@team.com", "priya@team.com"],
+    toNames: ["Alex Kim", "Priya Patel"],
+    subject: "Re: Team standup notes — May 12",
+    preview: "Hey team, thanks for the notes! I'll have the quarterly report draft ready by EOD Friday...",
+    body: `Hey team,
+
+Thanks for the notes! I'll have the quarterly report draft ready by EOD Friday.
+
+Also flagging: I noticed the CI issue might be related to the env var change last Tuesday. Worth checking that first before digging deeper.
+
+Let me know if you need anything.`,
+    sentAt: new Date(Date.now() - 1000 * 60 * 60 * 4),
+    hasAttachments: false,
+  },
+  {
+    id: "se3",
+    to: ["marco@startup.io"],
+    toNames: ["Marco Rivera"],
+    subject: "Re: Coffee chat this week?",
+    preview: "Hey Marco! Thursday at 3pm works perfectly for me. I'll send a calendar invite...",
+    body: `Hey Marco!
+
+Thursday at 3pm works perfectly for me. I'll send a calendar invite.
+
+Happy to share what's worked (and what hasn't) for go-to-market with developer tools — it's a topic I find endlessly interesting.
+
+See you then!
+
+Marti`,
+    sentAt: new Date(Date.now() - 1000 * 60 * 60 * 28),
+    hasAttachments: false,
+  },
+  {
+    id: "se4",
+    to: ["team@khu.io"],
+    toNames: ["KHU Team"],
+    subject: "Q1 Metrics Review — Action Items",
+    preview: "Hi all, attaching the Q1 metrics deck from today's review session. Key takeaways...",
+    body: `Hi all,
+
+Attaching the Q1 metrics deck from today's review session.
+
+Key takeaways:
+- DAU up 18% QoQ — strong growth from the product-led motion
+- Churn ticked up to 4.2% — need to address onboarding friction
+- NPS held steady at 42
+
+Action items are in the deck. Owners: please update Notion by EOW.
+
+Thanks everyone!`,
+    sentAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3),
+    hasAttachments: true,
+    attachments: [{ name: "Q1_Metrics_Review.pdf", size: "3.1 MB", type: "pdf" }],
   },
 ];
 

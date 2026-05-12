@@ -10,11 +10,13 @@ import { Button } from "@/components/ui/Button";
 import { MOCK_THREADS, EmailThread } from "@/lib/mock-data";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useToast } from "@/context/ToastContext";
+import { useInboxContext } from "@/context/InboxContext";
 
 type FilterTab = "all" | "unread" | "attachments" | "starred";
 
 export default function InboxPage() {
   const toast = useToast();
+  const { setUnreadCount } = useInboxContext();
   const [threads, setThreads] = useState<EmailThread[]>([]);
   const [archived, setArchived] = useState<EmailThread[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,7 +127,8 @@ export default function InboxPage() {
 
   useEffect(() => {
     document.title = unreadCount > 0 ? `(${unreadCount}) KHU Mail` : "KHU Mail";
-  }, [unreadCount]);
+    setUnreadCount(unreadCount);
+  }, [unreadCount, setUnreadCount]);
 
   useKeyboardShortcuts([
     {

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useInboxContext } from "@/context/InboxContext";
 
 interface NavItem {
   label: string;
@@ -42,11 +43,12 @@ function BellIcon() {
   );
 }
 
-export function Sidebar({ unreadCount = 3 }: { unreadCount?: number }) {
+export function Sidebar() {
   const pathname = usePathname();
+  const { unreadCount } = useInboxContext();
 
   const navItems: NavItem[] = [
-    { label: "Inbox", href: "/inbox", icon: <InboxIcon />, badge: unreadCount },
+    { label: "Inbox", href: "/inbox", icon: <InboxIcon />, badge: unreadCount || undefined },
     { label: "Scheduled", href: "/scheduled", icon: <ClockIcon />, badge: 2 },
     { label: "Sent", href: "/sent", icon: <SendIcon /> },
     { label: "Follow-ups", href: "/followups", icon: <BellIcon />, badge: 1 },

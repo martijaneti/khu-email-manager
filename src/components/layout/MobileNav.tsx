@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useInboxContext } from "@/context/InboxContext";
 
 export function MobileNav() {
   const pathname = usePathname();
+  const { unreadCount } = useInboxContext();
 
   const tabs = [
     {
@@ -49,6 +51,7 @@ export function MobileNav() {
     <nav className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 flex md:hidden">
       {tabs.map((tab) => {
         const active = pathname === tab.href;
+        const badge = tab.href === "/inbox" && unreadCount > 0 ? unreadCount : null;
         return (
           <Link
             key={tab.href}
@@ -57,8 +60,13 @@ export function MobileNav() {
               active ? "text-blue-600" : "text-gray-500"
             }`}
           >
-            <span className={active ? "text-blue-600" : "text-gray-400"}>
+            <span className={`relative ${active ? "text-blue-600" : "text-gray-400"}`}>
               {tab.icon}
+              {badge && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center">
+                  {badge > 9 ? "9+" : badge}
+                </span>
+              )}
             </span>
             {tab.label}
           </Link>

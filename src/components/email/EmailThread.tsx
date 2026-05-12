@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { EmailThread as EmailThreadType, getInitials, getAvatarColor } from "@/lib/mock-data";
+import { EmailThread as EmailThreadType, EmailMessage, getInitials, getAvatarColor } from "@/lib/mock-data";
 import { ComposeModal } from "@/components/compose/ComposeModal";
 import { Button } from "@/components/ui/Button";
 
@@ -57,6 +57,81 @@ function AISummaryCard({ summary }: { summary: string }) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
+    </div>
+  );
+}
+
+function MessageItem({
+  msg,
+  defaultExpanded,
+}: {
+  msg: EmailMessage;
+  defaultExpanded: boolean;
+}) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  const initials = getInitials(msg.from);
+  const avatarColor = getAvatarColor(msg.from);
+
+  const dateStr = msg.date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  return (
+    <div className="space-y-3">
+      <button
+        className="w-full flex items-start gap-3 text-left group"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+      >
+        <div
+          className={`flex-shrink-0 w-8 h-8 rounded-full ${avatarColor} flex items-center justify-center text-white text-xs font-semibold`}
+        >
+          {initials}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="font-semibold text-sm text-gray-900">{msg.from}</span>
+              {!expanded && (
+                <span className="text-xs text-gray-400 truncate">{msg.body.split("\n")[0].slice(0, 60)}</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span className="text-xs text-gray-400">{dateStr}</span>
+              <svg
+                className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? "rotate-180" : ""}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
+          {expanded && (
+            <p className="text-xs text-gray-400">to {msg.to.join(", ")}</p>
+          )}
+        </div>
+      </button>
+
+      {expanded && (
+        <>
+          <div className="ml-11 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+            {msg.body}
+          </div>
+
+          {msg.attachments && msg.attachments.length > 0 && (
+            <div className="ml-11 flex flex-wrap gap-2">
+              {msg.attachments.map((att) => (
+                <AttachmentPill key={att.name} {...att} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -125,52 +200,27 @@ export function EmailThreadView({ thread, onBack, onToggleStar }: EmailThreadPro
       {/* AI Summary */}
       {thread.aiSummary && <AISummaryCard summary={thread.aiSummary} />}
 
+      {/* Message count badge for multi-message threads */}
+      {thread.messages.length > 1 && (
+        <div className="mx-5 mt-3 flex items-center gap-2">
+          <div className="h-px flex-1 bg-gray-100" />
+          <span className="text-xs text-gray-400 font-medium">
+            {thread.messages.length} messages
+          </span>
+          <div className="h-px flex-1 bg-gray-100" />
+        </div>
+      )}
+
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
-        {thread.messages.map((msg) => {
-          const initials = getInitials(msg.from);
-          const avatarColor = getAvatarColor(msg.from);
-          return (
-            <div key={msg.id} className="space-y-3">
-              <div className="flex items-start gap-3">
-                <div
-                  className={`flex-shrink-0 w-8 h-8 rounded-full ${avatarColor} flex items-center justify-center text-white text-xs font-semibold`}
-                >
-                  {initials}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <span className="font-semibold text-sm text-gray-900">{msg.from}</span>
-                      <span className="text-xs text-gray-400 ml-2">&lt;{msg.fromEmail}&gt;</span>
-                    </div>
-                    <span className="text-xs text-gray-400 flex-shrink-0">
-                      {msg.date.toLocaleString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        hour: "numeric",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-400">to {msg.to.join(", ")}</p>
-                </div>
-              </div>
-
-              <div className="ml-11 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                {msg.body}
-              </div>
-
-              {msg.attachments && msg.attachments.length > 0 && (
-                <div className="ml-11 flex flex-wrap gap-2">
-                  {msg.attachments.map((att) => (
-                    <AttachmentPill key={att.name} {...att} />
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        {thread.messages.map((msg, idx) => (
+          <div key={msg.id} className={idx < thread.messages.length - 1 ? "pb-4 border-b border-gray-100" : ""}>
+            <MessageItem
+              msg={msg}
+              defaultExpanded={idx === thread.messages.length - 1}
+            />
+          </div>
+        ))}
       </div>
 
       {/* Quick reply bar */}

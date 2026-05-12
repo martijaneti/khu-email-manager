@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 
@@ -34,13 +34,21 @@ const FOLLOWUP_OPTIONS = [
   { value: "14", label: "2 weeks" },
 ];
 
+function draftKey(mode: ComposeMode, threadId?: string) {
+  return `khu_draft_${mode}_${threadId ?? "new"}`;
+}
+
 function AttachmentRow({ att, onRemove }: { att: Attachment; onRemove: (id: string) => void }) {
   const size =
     att.file.size < 1024 * 1024
       ? `${Math.round(att.file.size / 1024)} KB`
       : `${(att.file.size / (1024 * 1024)).toFixed(1)} MB`;
   const ext = att.file.name.split(".").pop()?.toLowerCase();
-  const icon = ["pdf"].includes(ext ?? "") ? "📄" : ["png", "jpg", "jpeg", "gif", "webp"].includes(ext ?? "") ? "🖼️" : "📎";
+  const icon = ["pdf"].includes(ext ?? "")
+    ? "📄"
+    : ["png", "jpg", "jpeg", "gif", "webp"].includes(ext ?? "")
+    ? "🖼️"
+    : "📎";
 
   return (
     <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-2 text-sm">
@@ -61,6 +69,8 @@ function AttachmentRow({ att, onRemove }: { att: Attachment; onRemove: (id: stri
 }
 
 export function ComposeModal({ open, onClose, mode = "reply", replyTo }: ComposeModalProps) {
+  const isNew = mode === "new" || !replyTo;
+
   const [sendMode, setSendMode] = useState<"now" | "scheduled">(
     mode === "scheduled" ? "scheduled" : "now"
   );
@@ -70,17 +80,63 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo }: Compose
     const d = new Date(Date.now() + 1000 * 60 * 60 * 3);
     return d.toISOString().slice(0, 16);
   });
+  const [to, setTo] = useState(replyTo?.email ?? "");
+  const [cc, setCc] = useState("");
+  const [bcc, setBcc] = useState("");
+  const [subject, setSubject] = useState(replyTo ? `Re: ${replyTo.subject}` : "");
   const [body, setBody] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [showCcBcc, setShowCcBcc] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const isNew = mode === "new" || !replyTo;
-  const [to, setTo] = useState(replyTo?.email ?? "");
-  const [subject, setSubject] = useState(
-    replyTo ? `Re: ${replyTo.subject}` : ""
-  );
+  // Restore draft on open
+  useEffect(() => {
+    if (!open) return;
+    try {
+      const saved = localStorage.getItem(draftKey(mode, replyTo?.threadId));
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.body) setBody(parsed.body);
+        if (parsed.cc) { setCc(parsed.cc); setShowCcBcc(true); }
+        if (parsed.bcc) { setBcc(parsed.bcc); setShowCcBcc(true); }
+        if (isNew) {
+          if (parsed.to) setTo(parsed.to);
+          if (parsed.subject) setSubject(parsed.subject);
+        }
+        setDraftRestored(true);
+      }
+    } catch {
+      // ignore corrupt draft
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Autosave draft every 2s when content changes
+  useEffect(() => {
+    if (!open || sent) return;
+    const timer = setTimeout(() => {
+      try {
+        const data = { body, cc, bcc, ...(isNew ? { to, subject } : {}) };
+        if (body || cc || bcc || (isNew && (to || subject))) {
+          localStorage.setItem(draftKey(mode, replyTo?.threadId), JSON.stringify(data));
+        }
+      } catch {
+        // ignore storage errors
+      }
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [open, body, cc, bcc, to, subject, isNew, mode, replyTo?.threadId, sent]);
+
+  function clearDraft() {
+    try {
+      localStorage.removeItem(draftKey(mode, replyTo?.threadId));
+    } catch {
+      // ignore
+    }
+  }
 
   const titleMap: Record<ComposeMode, string> = {
     reply: "Reply",
@@ -102,16 +158,30 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo }: Compose
     setAttachments((prev) => prev.filter((a) => a.id !== id));
   }
 
+  function handleDiscard() {
+    clearDraft();
+    setBody("");
+    setCc("");
+    setBcc("");
+    setAttachments([]);
+    setDraftRestored(false);
+    onClose();
+  }
+
   async function handleSend() {
     setSending(true);
     // Placeholder — will call /api/emails/send in Milestone 4
     await new Promise((r) => setTimeout(r, 800));
+    clearDraft();
     setSent(true);
     setTimeout(() => {
       setSent(false);
       setSending(false);
       setBody("");
+      setCc("");
+      setBcc("");
       setAttachments([]);
+      setDraftRestored(false);
       onClose();
     }, 1200);
   }
@@ -127,12 +197,27 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo }: Compose
     : "Schedule";
 
   return (
-    <Modal open={open} onClose={onClose} title={titleMap[mode]} size="lg">
+    <Modal open={open} onClose={handleDiscard} title={titleMap[mode]} size="lg">
       <div className="p-5 space-y-4">
-        {/* To / Subject */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
-            <span className="text-xs font-medium text-gray-400 w-14">To</span>
+        {draftRestored && (
+          <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Draft restored
+            <button
+              className="ml-auto text-amber-600 hover:text-amber-800 font-medium"
+              onClick={() => { setBody(""); setCc(""); setBcc(""); clearDraft(); setDraftRestored(false); }}
+            >
+              Discard draft
+            </button>
+          </div>
+        )}
+
+        {/* To / CC / BCC / Subject */}
+        <div className="space-y-0 border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
+          <div className="flex items-center gap-2 px-3 py-2">
+            <span className="text-xs font-medium text-gray-400 w-10">To</span>
             <input
               type="email"
               value={to}
@@ -141,9 +226,43 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo }: Compose
               className="flex-1 text-sm text-gray-800 focus:outline-none bg-transparent placeholder-gray-300"
               placeholder="recipient@example.com"
             />
+            {!showCcBcc && (
+              <button
+                onClick={() => setShowCcBcc(true)}
+                className="text-xs text-gray-400 hover:text-gray-600 font-medium flex-shrink-0"
+              >
+                CC BCC
+              </button>
+            )}
           </div>
-          <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
-            <span className="text-xs font-medium text-gray-400 w-14">Subject</span>
+
+          {showCcBcc && (
+            <>
+              <div className="flex items-center gap-2 px-3 py-2">
+                <span className="text-xs font-medium text-gray-400 w-10">CC</span>
+                <input
+                  type="text"
+                  value={cc}
+                  onChange={(e) => setCc(e.target.value)}
+                  className="flex-1 text-sm text-gray-800 focus:outline-none bg-transparent placeholder-gray-300"
+                  placeholder="cc@example.com"
+                />
+              </div>
+              <div className="flex items-center gap-2 px-3 py-2">
+                <span className="text-xs font-medium text-gray-400 w-10">BCC</span>
+                <input
+                  type="text"
+                  value={bcc}
+                  onChange={(e) => setBcc(e.target.value)}
+                  className="flex-1 text-sm text-gray-800 focus:outline-none bg-transparent placeholder-gray-300"
+                  placeholder="bcc@example.com"
+                />
+              </div>
+            </>
+          )}
+
+          <div className="flex items-center gap-2 px-3 py-2">
+            <span className="text-xs font-medium text-gray-400 w-10">Subj</span>
             <input
               type="text"
               value={subject}
@@ -159,7 +278,11 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo }: Compose
         <textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          placeholder={mode === "followup" ? "Follow-up message if they don't reply…" : "Write your message…"}
+          placeholder={
+            mode === "followup"
+              ? "Follow-up message if they don't reply…"
+              : "Write your message…"
+          }
           rows={8}
           className="w-full text-sm text-gray-800 focus:outline-none resize-none placeholder-gray-300 leading-relaxed"
         />
@@ -253,7 +376,6 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo }: Compose
       {/* Footer */}
       <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          {/* Attach files */}
           <input
             ref={fileInputRef}
             type="file"
@@ -272,12 +394,14 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo }: Compose
             Attach
           </Button>
           {attachments.length > 0 && (
-            <span className="text-xs text-gray-400">{attachments.length} file{attachments.length > 1 ? "s" : ""}</span>
+            <span className="text-xs text-gray-400">
+              {attachments.length} file{attachments.length > 1 ? "s" : ""}
+            </span>
           )}
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" onClick={onClose} disabled={sending}>
+          <Button variant="secondary" size="sm" onClick={handleDiscard} disabled={sending}>
             Discard
           </Button>
           <Button

@@ -5,24 +5,26 @@ import { EmailThread as EmailThreadType, EmailMessage, getInitials, getAvatarCol
 import { ComposeModal } from "@/components/compose/ComposeModal";
 import { Button } from "@/components/ui/Button";
 
-function MoreActionsMenu({ thread, onArchive, onDelete }: {
+const SNOOZE_OPTIONS = [
+  { label: "In 1 hour", getTime: () => new Date(Date.now() + 60 * 60 * 1000) },
+  { label: "Tonight (8 PM)", getTime: () => { const d = new Date(); d.setHours(20, 0, 0, 0); if (d <= new Date()) d.setDate(d.getDate() + 1); return d; } },
+  { label: "Tomorrow morning", getTime: () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0); return d; } },
+  { label: "Next week", getTime: () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
+];
+
+function MoreActionsMenu({ thread, onArchive, onDelete, onSnooze }: {
   thread: EmailThreadType;
   onArchive?: (id: string) => void;
   onDelete?: (id: string) => void;
+  onSnooze?: (id: string, until: Date) => void;
 }) {
   const [open, setOpen] = useState(false);
-
-  const actions = [
-    ...(onArchive ? [{ label: "Archive", icon: "🗂️", onClick: () => { onArchive(thread.id); setOpen(false); } }] : []),
-    ...(onDelete ? [{ label: "Delete", icon: "🗑️", onClick: () => { onDelete(thread.id); setOpen(false); } }] : []),
-    { label: "Mark as spam", icon: "🚫", onClick: () => { setOpen(false); } },
-    { label: "Block sender", icon: "⛔", onClick: () => { setOpen(false); } },
-  ];
+  const [showSnooze, setShowSnooze] = useState(false);
 
   return (
     <div className="relative">
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => { setOpen((v) => !v); setShowSnooze(false); }}
         className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
         aria-label="More actions"
       >
@@ -32,18 +34,61 @@ function MoreActionsMenu({ thread, onArchive, onDelete }: {
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-44 overflow-hidden">
-            {actions.map((a) => (
+          <div className="fixed inset-0 z-40" onClick={() => { setOpen(false); setShowSnooze(false); }} />
+          <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-48 overflow-hidden">
+            {onSnooze && !showSnooze && (
               <button
-                key={a.label}
-                onClick={a.onClick}
+                onClick={() => setShowSnooze(true)}
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left"
               >
-                <span>{a.icon}</span>
-                {a.label}
+                <span>😴</span>
+                Snooze…
+                <svg className="w-3.5 h-3.5 text-gray-400 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
               </button>
-            ))}
+            )}
+            {onSnooze && showSnooze && (
+              <>
+                <div className="flex items-center gap-1.5 px-3 py-2 border-b border-gray-100">
+                  <button onClick={() => setShowSnooze(false)} className="text-gray-400 hover:text-gray-600">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <span className="text-xs font-semibold text-gray-500">Snooze until…</span>
+                </div>
+                {SNOOZE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.label}
+                    onClick={() => { onSnooze(thread.id, opt.getTime()); setOpen(false); setShowSnooze(false); }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors text-left"
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </>
+            )}
+            {!showSnooze && (
+              <>
+                {onArchive && (
+                  <button onClick={() => { onArchive(thread.id); setOpen(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left">
+                    <span>🗂️</span>Archive
+                  </button>
+                )}
+                {onDelete && (
+                  <button onClick={() => { onDelete(thread.id); setOpen(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left">
+                    <span>🗑️</span>Delete
+                  </button>
+                )}
+                <button onClick={() => setOpen(false)} className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left">
+                  <span>🚫</span>Mark as spam
+                </button>
+                <button onClick={() => setOpen(false)} className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left">
+                  <span>⛔</span>Block sender
+                </button>
+              </>
+            )}
           </div>
         </>
       )}
@@ -131,6 +176,7 @@ interface EmailThreadProps {
   onToggleStar?: (id: string) => void;
   onArchive?: (id: string) => void;
   onDelete?: (id: string) => void;
+  onSnooze?: (id: string, until: Date) => void;
   onUpdateLabels?: (id: string, labels: string[]) => void;
 }
 
@@ -259,11 +305,14 @@ function AISummaryCard({ summary }: { summary: string }) {
 function MessageItem({
   msg,
   defaultExpanded,
+  forceExpanded,
 }: {
   msg: EmailMessage;
   defaultExpanded: boolean;
+  forceExpanded?: boolean;
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const isExpanded = forceExpanded !== undefined ? forceExpanded : expanded;
   const initials = getInitials(msg.from);
   const avatarColor = getAvatarColor(msg.from);
 
@@ -279,7 +328,7 @@ function MessageItem({
       <button
         className="w-full flex items-start gap-3 text-left group"
         onClick={() => setExpanded((v) => !v)}
-        aria-expanded={expanded}
+        aria-expanded={isExpanded}
       >
         <div
           className={`flex-shrink-0 w-8 h-8 rounded-full ${avatarColor} flex items-center justify-center text-white text-xs font-semibold`}
@@ -290,14 +339,14 @@ function MessageItem({
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               <span className="font-semibold text-sm text-gray-900">{msg.from}</span>
-              {!expanded && (
+              {!isExpanded && (
                 <span className="text-xs text-gray-400 truncate">{msg.body.split("\n")[0].slice(0, 60)}</span>
               )}
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <span className="text-xs text-gray-400">{dateStr}</span>
               <svg
-                className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? "rotate-180" : ""}`}
+                className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -306,13 +355,13 @@ function MessageItem({
               </svg>
             </div>
           </div>
-          {expanded && (
+          {isExpanded && (
             <p className="text-xs text-gray-400">to {msg.to.join(", ")}</p>
           )}
         </div>
       </button>
 
-      {expanded && (
+      {isExpanded && (
         <>
           <div className="ml-11 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
             {msg.body}
@@ -386,11 +435,12 @@ function getQuickReplies(lastBody: string, subject: string): string[] {
   return ["Thanks for reaching out!", "Noted, I'll get back to you soon.", "Sounds good!"];
 }
 
-export function EmailThreadView({ thread, onBack, onToggleStar, onArchive, onDelete, onUpdateLabels }: EmailThreadProps) {
+export function EmailThreadView({ thread, onBack, onToggleStar, onArchive, onDelete, onSnooze, onUpdateLabels }: EmailThreadProps) {
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeMode, setComposeMode] = useState<"reply" | "scheduled" | "followup" | "new">("reply");
   const [forwardTo, setForwardTo] = useState<{ email: string; name: string; subject: string; threadId?: string } | undefined>();
   const [quickReplyBody, setQuickReplyBody] = useState<string | undefined>();
+  const [expandAll, setExpandAll] = useState<boolean | undefined>(undefined);
 
   const quickReplies = getQuickReplies(thread.lastMessage.body, thread.subject);
 
@@ -488,7 +538,7 @@ export function EmailThreadView({ thread, onBack, onToggleStar, onArchive, onDel
             </svg>
             Reply
           </Button>
-          <MoreActionsMenu thread={thread} onArchive={onArchive} onDelete={onDelete} />
+          <MoreActionsMenu thread={thread} onArchive={onArchive} onDelete={onDelete} onSnooze={onSnooze} />
         </div>
       </div>
 
@@ -510,16 +560,37 @@ export function EmailThreadView({ thread, onBack, onToggleStar, onArchive, onDel
       {/* AI Summary */}
       {thread.aiSummary && <AISummaryCard summary={thread.aiSummary} />}
 
-      {/* Thread meta: message count + read time */}
+      {/* Thread meta: participants + message count + expand-all */}
       {(() => {
         const totalWords = thread.messages.reduce((sum, m) => sum + m.body.split(/\s+/).filter(Boolean).length, 0);
         const readMins = Math.max(1, Math.ceil(totalWords / 200));
+        const uniqueSenders = Array.from(new Set(thread.messages.map((m) => m.from)));
         return (
           <div className="mx-5 mt-3 flex items-center gap-3 text-xs text-gray-400">
+            {/* Participant avatars */}
+            <div className="flex items-center -space-x-1.5">
+              {uniqueSenders.slice(0, 4).map((sender) => (
+                <div
+                  key={sender}
+                  title={sender}
+                  className={`w-5 h-5 rounded-full border border-white ${getAvatarColor(sender)} flex items-center justify-center text-white text-[8px] font-bold`}
+                >
+                  {getInitials(sender)}
+                </div>
+              ))}
+            </div>
             {thread.messages.length > 1 && (
               <span>{thread.messages.length} messages</span>
             )}
             <span>~{readMins} min read</span>
+            {thread.messages.length > 1 && (
+              <button
+                onClick={() => setExpandAll((v) => v === true ? false : true)}
+                className="ml-auto text-gray-400 hover:text-gray-600 transition-colors font-medium"
+              >
+                {expandAll ? "Collapse all" : "Expand all"}
+              </button>
+            )}
           </div>
         );
       })()}
@@ -532,6 +603,7 @@ export function EmailThreadView({ thread, onBack, onToggleStar, onArchive, onDel
             <MessageItem
               msg={msg}
               defaultExpanded={idx === thread.messages.length - 1}
+              forceExpanded={expandAll}
             />
           </div>
         ))}

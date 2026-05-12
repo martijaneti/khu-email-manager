@@ -71,6 +71,8 @@ export default function InboxPage() {
   const { listWidth, onDragStart } = usePanelResize();
   const [threads, setThreads] = useState<EmailThread[]>([]);
   const [archived, setArchived] = useState<EmailThread[]>([]);
+  const [snoozed, setSnoozed] = useState<{ thread: EmailThread; until: Date }[]>([]);
+  const snoozeTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<EmailThread | null>(null);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
@@ -179,6 +181,50 @@ export default function InboxPage() {
             );
           });
           toast.show("Restored to inbox", "success");
+        },
+      });
+    },
+    [threads, selected, toast]
+  );
+
+  const snooze = useCallback(
+    (id: string, until: Date) => {
+      const thread = threads.find((t) => t.id === id);
+      if (!thread) return;
+      setThreads((prev) => prev.filter((t) => t.id !== id));
+      if (selected?.id === id) setSelected(null);
+      setSnoozed((prev) => [...prev, { thread, until }]);
+
+      const ms = until.getTime() - Date.now();
+      const timer = setTimeout(() => {
+        setSnoozed((prev) => prev.filter((s) => s.thread.id !== id));
+        setThreads((prev) => {
+          if (prev.find((t) => t.id === id)) return prev;
+          return [{ ...thread, unread: true }, ...prev].sort(
+            (a, b) => b.lastMessage.date.getTime() - a.lastMessage.date.getTime()
+          );
+        });
+        snoozeTimers.current.delete(id);
+        toast.show(`Snoozed email from ${thread.lastMessage.from} is back`, "info");
+      }, Math.max(ms, 1000));
+      snoozeTimers.current.set(id, timer);
+
+      const timeStr = until.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+      const dateStr = until.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const isToday = until.toDateString() === new Date().toDateString();
+      toast.show(`Snoozed until ${isToday ? timeStr : `${dateStr} ${timeStr}`}`, "info", {
+        label: "Undo",
+        onClick: () => {
+          const t = snoozeTimers.current.get(id);
+          if (t) { clearTimeout(t); snoozeTimers.current.delete(id); }
+          setSnoozed((prev) => prev.filter((s) => s.thread.id !== id));
+          setThreads((prev) => {
+            if (prev.find((t) => t.id === id)) return prev;
+            return [thread, ...prev].sort(
+              (a, b) => b.lastMessage.date.getTime() - a.lastMessage.date.getTime()
+            );
+          });
+          toast.show("Unsnooze: email restored", "success");
         },
       });
     },
@@ -541,6 +587,7 @@ export default function InboxPage() {
               setSelected(null);
               toast.show("Email deleted", "info");
             }}
+            onSnooze={snooze}
             onUpdateLabels={updateLabels}
           />
         </div>

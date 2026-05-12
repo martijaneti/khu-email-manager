@@ -21,9 +21,53 @@ const EMPTY_STATE: Record<FilterTab, { icon: string; title: string; subtitle: st
   starred: { icon: "⭐", title: "No starred emails", subtitle: "Press S to star an email." },
 };
 
+const MIN_LIST_WIDTH = 260;
+const MAX_LIST_WIDTH = 580;
+const DEFAULT_LIST_WIDTH = 320;
+
+function usePanelResize() {
+  const [listWidth, setListWidth] = useState(() => {
+    if (typeof window === "undefined") return DEFAULT_LIST_WIDTH;
+    return parseInt(localStorage.getItem("khu_list_width") ?? String(DEFAULT_LIST_WIDTH), 10);
+  });
+  const isDragging = useRef(false);
+  const startX = useRef(0);
+  const startWidth = useRef(0);
+
+  useEffect(() => {
+    localStorage.setItem("khu_list_width", String(listWidth));
+  }, [listWidth]);
+
+  const onDragStart = useCallback((e: React.MouseEvent) => {
+    isDragging.current = true;
+    startX.current = e.clientX;
+    startWidth.current = listWidth;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    function onMove(ev: MouseEvent) {
+      if (!isDragging.current) return;
+      const newW = Math.max(MIN_LIST_WIDTH, Math.min(MAX_LIST_WIDTH, startWidth.current + ev.clientX - startX.current));
+      setListWidth(newW);
+    }
+    function onUp() {
+      isDragging.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [listWidth]);
+
+  return { listWidth, onDragStart };
+}
+
 export default function InboxPage() {
   const toast = useToast();
   const { setUnreadCount } = useInboxContext();
+  const { listWidth, onDragStart } = usePanelResize();
   const [threads, setThreads] = useState<EmailThread[]>([]);
   const [archived, setArchived] = useState<EmailThread[]>([]);
   const [loading, setLoading] = useState(true);
@@ -288,11 +332,10 @@ export default function InboxPage() {
     <div className="flex h-full">
       {/* List panel */}
       <div
-        className={`flex flex-col border-r border-gray-200 bg-white ${
-          selected
-            ? "hidden md:flex w-80 lg:w-96 xl:w-[420px]"
-            : "flex w-full md:w-80 lg:w-96 xl:w-[420px]"
+        className={`flex flex-col border-gray-200 bg-white flex-shrink-0 ${
+          selected ? "hidden md:flex border-r" : "flex w-full border-r md:border-r"
         }`}
+        style={selected ? { width: listWidth } : undefined}
       >
         {/* Header */}
         <div className="px-4 pt-3.5 pb-0 border-b border-gray-100 space-y-3">
@@ -423,6 +466,17 @@ export default function InboxPage() {
           )}
         </div>
       </div>
+
+      {/* Drag handle (desktop only, when thread is open) */}
+      {selected && (
+        <div
+          onMouseDown={onDragStart}
+          className="hidden md:flex w-1 flex-shrink-0 cursor-col-resize group items-stretch"
+          title="Drag to resize"
+        >
+          <div className="w-full bg-gray-200 group-hover:bg-blue-400 transition-colors" />
+        </div>
+      )}
 
       {/* Thread panel */}
       {selected ? (

@@ -270,17 +270,24 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo }: Compose
         </div>
 
         {/* Body */}
-        <textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder={
-            mode === "followup"
-              ? "Follow-up message if they don't reply…"
-              : "Write your message…"
-          }
-          rows={8}
-          className="w-full text-sm text-gray-800 focus:outline-none resize-none placeholder-gray-300 leading-relaxed"
-        />
+        <div className="relative">
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder={
+              mode === "followup"
+                ? "Follow-up message if they don't reply…"
+                : "Write your message…"
+            }
+            rows={8}
+            className="w-full text-sm text-gray-800 focus:outline-none resize-none placeholder-gray-300 leading-relaxed"
+          />
+          {body.length > 0 && (
+            <div className="absolute bottom-1 right-0 text-[10px] text-gray-300 select-none">
+              {body.split(/\s+/).filter(Boolean).length} words · {body.length} chars
+            </div>
+          )}
+        </div>
 
         {/* Attachments */}
         {attachments.length > 0 && (

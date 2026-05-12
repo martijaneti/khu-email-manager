@@ -1,13 +1,20 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MOCK_SCHEDULED, ScheduledEmail, formatScheduledTime } from "@/lib/mock-data";
 import { useToast } from "@/context/ToastContext";
+import { useInboxContext } from "@/context/InboxContext";
 import { ComposeModal } from "@/components/compose/ComposeModal";
 
 export default function ScheduledPage() {
   const toast = useToast();
+  const { setScheduledCount } = useInboxContext();
   const [items, setItems] = useState<ScheduledEmail[]>(MOCK_SCHEDULED);
+
+  useEffect(() => {
+    setScheduledCount(items.length);
+    return () => setScheduledCount(0);
+  }, [items.length, setScheduledCount]);
   const [editItem, setEditItem] = useState<ScheduledEmail | null>(null);
   const cancelTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 

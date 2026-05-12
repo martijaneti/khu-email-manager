@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useToast } from "@/context/ToastContext";
+import { useInboxContext } from "@/context/InboxContext";
 
 interface Followup {
   id: string;
@@ -39,8 +40,16 @@ const INITIAL_FOLLOWUPS: Followup[] = [
 
 export default function FollowupsPage() {
   const toast = useToast();
+  const { setFollowupCount } = useInboxContext();
   const [followups, setFollowups] = useState<Followup[]>(INITIAL_FOLLOWUPS);
   const cancelTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  const watching = followups.filter((f) => f.status === "watching");
+
+  useEffect(() => {
+    setFollowupCount(watching.length);
+    return () => setFollowupCount(0);
+  }, [watching.length, setFollowupCount]);
 
   function cancelFollowup(id: string) {
     const item = followups.find((f) => f.id === id);
@@ -66,8 +75,6 @@ export default function FollowupsPage() {
       },
     });
   }
-
-  const watching = followups.filter((f) => f.status === "watching");
 
   return (
     <div className="flex flex-col h-full bg-white">

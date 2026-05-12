@@ -45,13 +45,13 @@ function BellIcon() {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { unreadCount } = useInboxContext();
+  const { unreadCount, scheduledCount, followupCount } = useInboxContext();
 
   const navItems: NavItem[] = [
     { label: "Inbox", href: "/inbox", icon: <InboxIcon />, badge: unreadCount || undefined },
-    { label: "Scheduled", href: "/scheduled", icon: <ClockIcon />, badge: 2 },
+    { label: "Scheduled", href: "/scheduled", icon: <ClockIcon />, badge: scheduledCount || undefined },
     { label: "Sent", href: "/sent", icon: <SendIcon /> },
-    { label: "Follow-ups", href: "/followups", icon: <BellIcon />, badge: 1 },
+    { label: "Follow-ups", href: "/followups", icon: <BellIcon />, badge: followupCount || undefined },
   ];
 
   return (

@@ -138,10 +138,23 @@ function MessageItem({
 
 export function EmailThreadView({ thread, onBack, onToggleStar }: EmailThreadProps) {
   const [composeOpen, setComposeOpen] = useState(false);
-  const [composeMode, setComposeMode] = useState<"reply" | "scheduled" | "followup">("reply");
+  const [composeMode, setComposeMode] = useState<"reply" | "scheduled" | "followup" | "new">("reply");
+  const [forwardTo, setForwardTo] = useState<{ email: string; name: string; subject: string; threadId?: string } | undefined>();
 
   function openCompose(mode: "reply" | "scheduled" | "followup") {
     setComposeMode(mode);
+    setForwardTo(undefined);
+    setComposeOpen(true);
+  }
+
+  function openForward() {
+    setComposeMode("new");
+    setForwardTo({
+      email: "",
+      name: "",
+      subject: `Fwd: ${thread.subject}`,
+      threadId: thread.id,
+    });
     setComposeOpen(true);
   }
 
@@ -176,6 +189,12 @@ export function EmailThreadView({ thread, onBack, onToggleStar }: EmailThreadPro
         </div>
 
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          <Button variant="ghost" size="sm" onClick={openForward}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="hidden sm:inline">Forward</span>
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => openCompose("scheduled")}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -237,12 +256,14 @@ export function EmailThreadView({ thread, onBack, onToggleStar }: EmailThreadPro
         open={composeOpen}
         onClose={() => setComposeOpen(false)}
         mode={composeMode}
-        replyTo={{
-          email: thread.lastMessage.fromEmail,
-          name: thread.lastMessage.from,
-          subject: thread.subject,
-          threadId: thread.id,
-        }}
+        replyTo={
+          forwardTo ?? {
+            email: thread.lastMessage.fromEmail,
+            name: thread.lastMessage.from,
+            subject: thread.subject,
+            threadId: thread.id,
+          }
+        }
       />
     </div>
   );

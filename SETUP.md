@@ -18,7 +18,9 @@ Get a token at: https://github.com/settings/tokens/new?scopes=repo
 
 1. Go to https://supabase.com → New project (free tier)
 2. Note your **Project URL** and **anon public key** (Settings → API)
-3. Run the migration in the SQL editor (copy from `supabase/migrations/001_initial_schema.sql`)
+3. Run both migrations in the SQL editor (in order):
+   - `supabase/migrations/001_initial_schema.sql`
+   - `supabase/migrations/002_gmail_tokens_unique_user.sql`
 4. Enable Google provider: Authentication → Providers → Google
 
 ---
@@ -47,7 +49,13 @@ npx vercel --prod
 NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-anon-key>
 NEXT_PUBLIC_APP_URL=https://<your-vercel-url>.vercel.app
+GOOGLE_CLIENT_ID=<your-google-client-id>
+GOOGLE_CLIENT_SECRET=<your-google-client-secret>
 ```
+
+> `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` must match the credentials you pasted into
+> Supabase Auth → Google provider. They are used **server-side** to refresh Google access
+> tokens so API routes can call the Gmail API without exposing tokens to the browser.
 
 ---
 
@@ -55,7 +63,7 @@ NEXT_PUBLIC_APP_URL=https://<your-vercel-url>.vercel.app
 
 ```bash
 cp .env.local.example .env.local
-# Fill in the values from steps 2–3
+# Fill in the values from steps 2–4 (Supabase URL, anon key, Google client ID/secret)
 npm run dev
 # → http://localhost:3000 → sign in with Google
 ```

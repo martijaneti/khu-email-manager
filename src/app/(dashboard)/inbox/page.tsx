@@ -564,18 +564,39 @@ export default function InboxPage() {
           {loading ? (
             <EmailListSkeleton count={6} />
           ) : (
-            <EmailList
-              threads={filtered}
-              selectedId={selected?.id ?? null}
-              checkedIds={checkedIds}
-              searchQuery={search}
-              onSelect={handleSelect}
-              onToggleCheck={toggleCheck}
-              onToggleStar={toggleStar}
-              onArchive={archive}
-              onToggleRead={toggleRead}
-              emptyState={emptyState}
-            />
+            <>
+              {/* Snoozed pill (shown when there are snoozed threads) */}
+              {snoozed.length > 0 && (
+                <div className="px-4 py-2 bg-indigo-50 border-b border-indigo-100 flex items-center gap-2">
+                  <svg className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-xs text-indigo-600 font-medium flex-1">
+                    {snoozed.length} snoozed {snoozed.length === 1 ? "email" : "emails"}
+                  </span>
+                  <div className="flex gap-1 flex-wrap">
+                    {snoozed.slice(0, 2).map((s) => (
+                      <span key={s.thread.id} className="text-[10px] text-indigo-500 bg-white border border-indigo-200 rounded-full px-2 py-0.5 truncate max-w-[100px]">
+                        {s.thread.lastMessage.from.split(" ")[0]} · {s.until.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                      </span>
+                    ))}
+                    {snoozed.length > 2 && <span className="text-[10px] text-indigo-500">+{snoozed.length - 2}</span>}
+                  </div>
+                </div>
+              )}
+              <EmailList
+                threads={filtered}
+                selectedId={selected?.id ?? null}
+                checkedIds={checkedIds}
+                searchQuery={search}
+                onSelect={handleSelect}
+                onToggleCheck={toggleCheck}
+                onToggleStar={toggleStar}
+                onArchive={archive}
+                onToggleRead={toggleRead}
+                emptyState={emptyState}
+              />
+            </>
           )}
         </div>
       </div>

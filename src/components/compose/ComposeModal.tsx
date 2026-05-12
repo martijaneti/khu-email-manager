@@ -79,6 +79,7 @@ interface ComposeModalProps {
   mode?: ComposeMode;
   replyTo?: ReplyTo;
   initialBody?: string;
+  initialCc?: string;
 }
 
 const FOLLOWUP_OPTIONS = [
@@ -124,7 +125,7 @@ function AttachmentRow({ att, onRemove }: { att: Attachment; onRemove: (id: stri
   );
 }
 
-export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBody }: ComposeModalProps) {
+export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBody, initialCc }: ComposeModalProps) {
   const isNew = mode === "new" || !replyTo;
 
   const [sendMode, setSendMode] = useState<"now" | "scheduled">(
@@ -137,14 +138,15 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBo
     return d.toISOString().slice(0, 16);
   });
   const [to, setTo] = useState(replyTo?.email ?? "");
-  const [cc, setCc] = useState("");
+  const [cc, setCc] = useState(initialCc ?? "");
   const [bcc, setBcc] = useState("");
+  const [showCcInitial] = useState(!!initialCc);
   const [subject, setSubject] = useState(replyTo ? `Re: ${replyTo.subject}` : "");
   const [body, setBody] = useState(initialBody ?? "");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [sent, setSent] = useState(false);
-  const [showCcBcc, setShowCcBcc] = useState(false);
+  const [showCcBcc, setShowCcBcc] = useState(showCcInitial);
   const [draftRestored, setDraftRestored] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);

@@ -379,6 +379,20 @@ export const MOCK_SCHEDULED: ScheduledEmail[] = [
   },
 ];
 
+export interface Contact {
+  name: string;
+  email: string;
+}
+
+export const KNOWN_CONTACTS: Contact[] = [
+  { name: "Sarah Chen", email: "sarah@acmecorp.com" },
+  { name: "Stripe Billing", email: "billing@stripe.com" },
+  { name: "Alex Kim", email: "alex@team.com" },
+  { name: "Priya Patel", email: "priya@team.com" },
+  { name: "GitHub", email: "noreply@github.com" },
+  { name: "Marco Rivera", email: "marco@startup.io" },
+];
+
 export function formatRelativeTime(date: Date): string {
   const now = Date.now();
   const diff = now - date.getTime();

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
+import { RecipientInput } from "./RecipientInput";
 
 type ComposeMode = "reply" | "scheduled" | "followup" | "new";
 
@@ -218,12 +219,10 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo }: Compose
         <div className="space-y-0 border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
           <div className="flex items-center gap-2 px-3 py-2">
             <span className="text-xs font-medium text-gray-400 w-10">To</span>
-            <input
-              type="email"
+            <RecipientInput
               value={to}
-              onChange={(e) => setTo(e.target.value)}
+              onChange={setTo}
               readOnly={!isNew}
-              className="flex-1 text-sm text-gray-800 focus:outline-none bg-transparent placeholder-gray-300"
               placeholder="recipient@example.com"
             />
             {!showCcBcc && (
@@ -240,21 +239,17 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo }: Compose
             <>
               <div className="flex items-center gap-2 px-3 py-2">
                 <span className="text-xs font-medium text-gray-400 w-10">CC</span>
-                <input
-                  type="text"
+                <RecipientInput
                   value={cc}
-                  onChange={(e) => setCc(e.target.value)}
-                  className="flex-1 text-sm text-gray-800 focus:outline-none bg-transparent placeholder-gray-300"
+                  onChange={setCc}
                   placeholder="cc@example.com"
                 />
               </div>
               <div className="flex items-center gap-2 px-3 py-2">
                 <span className="text-xs font-medium text-gray-400 w-10">BCC</span>
-                <input
-                  type="text"
+                <RecipientInput
                   value={bcc}
-                  onChange={(e) => setBcc(e.target.value)}
-                  className="flex-1 text-sm text-gray-800 focus:outline-none bg-transparent placeholder-gray-300"
+                  onChange={setBcc}
                   placeholder="bcc@example.com"
                 />
               </div>

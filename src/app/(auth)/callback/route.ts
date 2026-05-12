@@ -35,14 +35,39 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    const { error: exchangeError } =
+    const { data, error: exchangeError } =
       await supabase.auth.exchangeCodeForSession(code);
 
-    if (!exchangeError) {
+    if (!exchangeError && data.session) {
+      // Persist the Google refresh token so server-side API routes can call
+      // the Gmail API without exposing any token to the browser.
+      const refreshToken = data.session.provider_refresh_token;
+      if (refreshToken && data.user) {
+        const scopes = (data.session.provider_token ?? "")
+          .split(" ")
+          .filter(Boolean);
+
+        const { error: upsertError } = await supabase
+          .from("gmail_tokens")
+          .upsert(
+            {
+              user_id: data.user.id,
+              refresh_token: refreshToken,
+              granted_scopes: scopes,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "user_id" }
+          );
+
+        if (upsertError) {
+          console.error("Failed to save Gmail refresh token:", upsertError.message);
+        }
+      }
+
       return NextResponse.redirect(`${origin}${next}`);
     }
 
-    console.error("Code exchange error:", exchangeError.message);
+    console.error("Code exchange error:", exchangeError?.message);
   }
 
   return NextResponse.redirect(`${origin}/login?error=auth_failed`);

@@ -8,10 +8,21 @@ import { EmailThreadView } from "@/components/email/EmailThread";
 import { ComposeModal } from "@/components/compose/ComposeModal";
 import { ShortcutsModal } from "@/components/ui/ShortcutsModal";
 import { Button } from "@/components/ui/Button";
-import { MOCK_THREADS, EmailThread, generateNewEmail } from "@/lib/mock-data";
+import { MOCK_THREADS, EmailThread } from "@/lib/mock-data";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useToast } from "@/context/ToastContext";
 import { useInboxContext } from "@/context/InboxContext";
+
+function deserializeThread(raw: EmailThread & {
+  lastMessage: Omit<EmailThread["lastMessage"], "date"> & { date: string };
+  messages: (Omit<EmailThread["messages"][number], "date"> & { date: string })[];
+}): EmailThread {
+  return {
+    ...raw,
+    lastMessage: { ...raw.lastMessage, date: new Date(raw.lastMessage.date) },
+    messages: raw.messages.map((m) => ({ ...m, date: new Date(m.date) })),
+  };
+}
 
 type FilterTab = "all" | "unread" | "attachments" | "starred" | "important";
 
@@ -76,7 +87,9 @@ export default function InboxPage() {
   const [snoozed, setSnoozed] = useState<{ thread: EmailThread; until: Date }[]>([]);
   const snoozeTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [selected, setSelected] = useState<EmailThread | null>(null);
+  const [threadDetailLoading, setThreadDetailLoading] = useState(false);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [composeOpen, setComposeOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -86,45 +99,37 @@ export default function InboxPage() {
   const archiveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      setThreads(MOCK_THREADS);
-      setLoading(false);
-    }, 600);
-    return () => clearTimeout(t);
-  }, []);
-
-  // Simulate new email arriving every ~45s
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const newEmail = generateNewEmail();
-      setThreads((prev) => [newEmail, ...prev]);
-
-      // Toast notification
-      if (localStorage.getItem("khu_notif_toast") !== "false") {
-        toast.show(`New message from ${newEmail.lastMessage.from}`, "info", {
-          label: "Open",
-          onClick: () => {
-            setSelected(newEmail);
-            setThreads((prev) => prev.map((t) => t.id === newEmail.id ? { ...t, unread: false } : t));
-          },
-        });
+    async function loadThreads() {
+      setLoading(true);
+      setFetchError(null);
+      try {
+        const res = await fetch("/api/gmail/threads");
+        if (res.status === 503) {
+          // Demo mode — fall back to mock data
+          setThreads(MOCK_THREADS);
+          return;
+        }
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          if (body.error === "no_gmail_token") {
+            setFetchError("Gmail not connected. Please sign out and sign in again to grant access.");
+          } else {
+            setFetchError("Could not load your inbox. Showing demo data instead.");
+          }
+          setThreads(MOCK_THREADS);
+          return;
+        }
+        const data = await res.json();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setThreads((data.threads ?? []).map((t: any) => deserializeThread(t)));
+      } catch {
+        setFetchError("Network error. Showing demo data instead.");
+        setThreads(MOCK_THREADS);
+      } finally {
+        setLoading(false);
       }
-
-      // Desktop notification
-      if (
-        localStorage.getItem("khu_notif_desktop") === "true" &&
-        typeof Notification !== "undefined" &&
-        Notification.permission === "granted"
-      ) {
-        new Notification(`New email from ${newEmail.lastMessage.from}`, {
-          body: newEmail.lastMessage.preview,
-          icon: "/favicon.ico",
-          tag: newEmail.id,
-        });
-      }
-    }, 45000);
-    return () => clearInterval(interval);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    }
+    loadThreads();
   }, []);
 
   const filtered = useMemo(() => {
@@ -310,9 +315,8 @@ export default function InboxPage() {
     toast.show(`${count} email${count !== 1 ? "s" : ""} marked as read`, "info");
   }, [threads, toast]);
 
-  function handleSelect(thread: EmailThread) {
+  async function handleSelect(thread: EmailThread) {
     if (someChecked) {
-      // In selection mode, clicking selects/deselects
       setCheckedIds((prev) => {
         const n = new Set(prev);
         n.has(thread.id) ? n.delete(thread.id) : n.add(thread.id);
@@ -320,8 +324,31 @@ export default function InboxPage() {
       });
       return;
     }
+    // Show immediately with preview, then fetch full thread content
     setSelected(thread);
     markRead(thread.id);
+
+    // Skip full-fetch if thread already has real message bodies
+    const hasBody = thread.messages.some((m) => m.body && m.body.length > 0);
+    if (hasBody) return;
+
+    setThreadDetailLoading(true);
+    try {
+      const res = await fetch(`/api/gmail/threads/${thread.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const full: EmailThread = deserializeThread(data.thread as any);
+        setThreads((prev) =>
+          prev.map((t) => (t.id === full.id ? { ...full, unread: false } : t))
+        );
+        setSelected({ ...full, unread: false });
+      }
+    } catch {
+      // Thread detail fetch failed — preview content still shows
+    } finally {
+      setThreadDetailLoading(false);
+    }
   }
 
   function toggleCheck(id: string) {
@@ -596,6 +623,15 @@ export default function InboxPage() {
           )}
         </div>
 
+        {fetchError && !loading && (
+          <div className="px-4 py-2 text-xs text-amber-700 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+            <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            {fetchError}
+          </div>
+        )}
+
         {search && !loading && (
           <div className="px-4 py-2 text-xs text-gray-400 border-b border-gray-100">
             {filtered.length} result{filtered.length !== 1 ? "s" : ""} for &ldquo;{search}&rdquo;
@@ -656,7 +692,15 @@ export default function InboxPage() {
 
       {/* Thread panel */}
       {selected ? (
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden relative">
+          {threadDetailLoading && (
+            <div className="absolute inset-0 z-10 bg-white/60 flex items-center justify-center pointer-events-none">
+              <svg className="w-5 h-5 text-blue-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+              </svg>
+            </div>
+          )}
           <EmailThreadView
             thread={selected}
             onBack={() => setSelected(null)}

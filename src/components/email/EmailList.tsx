@@ -3,13 +3,22 @@
 import { EmailThread, formatRelativeTime, getInitials, getAvatarColor } from "@/lib/mock-data";
 import { useToast } from "@/context/ToastContext";
 
+interface EmptyState {
+  icon: string;
+  title: string;
+  subtitle: string;
+}
+
 interface EmailListProps {
   threads: EmailThread[];
   selectedId: string | null;
+  checkedIds?: Set<string>;
   onSelect: (thread: EmailThread) => void;
+  onToggleCheck?: (id: string) => void;
   onToggleStar?: (id: string) => void;
   onArchive?: (id: string) => void;
   onToggleRead?: (id: string) => void;
+  emptyState?: EmptyState;
 }
 
 function PaperclipIcon() {
@@ -35,18 +44,24 @@ function StarIcon({ filled }: { filled?: boolean }) {
 export function EmailList({
   threads,
   selectedId,
+  checkedIds,
   onSelect,
+  onToggleCheck,
   onToggleStar,
   onArchive,
   onToggleRead,
+  emptyState,
 }: EmailListProps) {
   const toast = useToast();
+  const selectionMode = checkedIds && checkedIds.size > 0;
 
   if (threads.length === 0) {
+    const empty = emptyState ?? { icon: "📭", title: "No emails found", subtitle: "" };
     return (
       <div className="flex flex-col items-center justify-center h-full py-20 text-center px-6">
-        <div className="text-4xl mb-3">📭</div>
-        <p className="text-gray-500 text-sm">No emails found</p>
+        <div className="text-4xl mb-3">{empty.icon}</div>
+        <p className="text-gray-500 text-sm font-medium">{empty.title}</p>
+        {empty.subtitle && <p className="text-gray-400 text-xs mt-1">{empty.subtitle}</p>}
       </div>
     );
   }
@@ -54,7 +69,8 @@ export function EmailList({
   return (
     <div className="divide-y divide-gray-100">
       {threads.map((thread) => {
-        const selected = selectedId === thread.id;
+        const isSelected = selectedId === thread.id;
+        const isChecked = checkedIds?.has(thread.id) ?? false;
         const initials = getInitials(thread.lastMessage.from);
         const avatarColor = getAvatarColor(thread.lastMessage.from);
 
@@ -62,17 +78,38 @@ export function EmailList({
           <div
             key={thread.id}
             className={`relative flex gap-3 items-start px-4 py-3.5 cursor-pointer transition-colors group ${
-              selected
+              isChecked
+                ? "bg-blue-50"
+                : isSelected
                 ? "bg-blue-50 border-l-2 border-blue-500"
                 : "hover:bg-gray-50 border-l-2 border-transparent"
             }`}
             onClick={() => onSelect(thread)}
           >
-            {/* Avatar */}
-            <div
-              className={`flex-shrink-0 w-9 h-9 rounded-full ${avatarColor} flex items-center justify-center text-white text-xs font-semibold mt-0.5`}
-            >
-              {initials}
+            {/* Checkbox / Avatar */}
+            <div className="flex-shrink-0 relative mt-0.5" onClick={(e) => e.stopPropagation()}>
+              {/* Checkbox: visible in selection mode or on hover */}
+              <div
+                className={`absolute inset-0 flex items-center justify-center rounded-full transition-opacity ${
+                  selectionMode || isChecked ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  onChange={() => onToggleCheck?.(thread.id)}
+                  className="w-4 h-4 rounded accent-blue-500 cursor-pointer"
+                  aria-label={`Select ${thread.subject}`}
+                />
+              </div>
+              {/* Avatar: hidden in selection mode or on hover */}
+              <div
+                className={`w-9 h-9 rounded-full ${avatarColor} flex items-center justify-center text-white text-xs font-semibold transition-opacity ${
+                  selectionMode || isChecked ? "opacity-0" : "opacity-100 group-hover:opacity-0"
+                }`}
+              >
+                {initials}
+              </div>
             </div>
 
             {/* Content */}
@@ -106,83 +143,76 @@ export function EmailList({
 
             {/* Right: unread dot + hover actions */}
             <div className="flex flex-col items-center gap-1.5 flex-shrink-0 mt-1">
-              {thread.unread && (
+              {thread.unread && !selectionMode && (
                 <div className="w-2 h-2 bg-blue-500 rounded-full group-hover:hidden" />
               )}
 
-              {/* Hover quick-action row */}
-              <div className="hidden group-hover:flex items-center gap-0.5">
-                {/* Star */}
-                {onToggleStar && (
-                  <button
-                    title={thread.starred ? "Unstar" : "Star"}
-                    className={`p-1.5 rounded-md transition-colors ${
-                      thread.starred
-                        ? "text-amber-400"
-                        : "text-gray-300 hover:text-amber-400 hover:bg-amber-50"
-                    }`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggleStar(thread.id);
-                      toast.show(
-                        thread.starred ? "Removed from starred" : "Added to starred",
-                        "success"
-                      );
-                    }}
-                  >
-                    <StarIcon filled={thread.starred} />
-                  </button>
-                )}
+              {/* Hover quick-action row (hidden in selection mode) */}
+              {!selectionMode && (
+                <div className="hidden group-hover:flex items-center gap-0.5">
+                  {onToggleStar && (
+                    <button
+                      title={thread.starred ? "Unstar" : "Star"}
+                      className={`p-1.5 rounded-md transition-colors ${
+                        thread.starred
+                          ? "text-amber-400"
+                          : "text-gray-300 hover:text-amber-400 hover:bg-amber-50"
+                      }`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleStar(thread.id);
+                        toast.show(
+                          thread.starred ? "Removed from starred" : "Added to starred",
+                          "success"
+                        );
+                      }}
+                    >
+                      <StarIcon filled={thread.starred} />
+                    </button>
+                  )}
 
-                {/* Mark read/unread */}
-                {onToggleRead && (
-                  <button
-                    title={thread.unread ? "Mark as read" : "Mark as unread"}
-                    className="p-1.5 rounded-md text-gray-300 hover:text-blue-500 hover:bg-blue-50 transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggleRead(thread.id);
-                      toast.show(thread.unread ? "Marked as read" : "Marked as unread", "info");
-                    }}
-                  >
-                    {thread.unread ? (
+                  {onToggleRead && (
+                    <button
+                      title={thread.unread ? "Mark as read" : "Mark as unread"}
+                      className="p-1.5 rounded-md text-gray-300 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleRead(thread.id);
+                        toast.show(thread.unread ? "Marked as read" : "Marked as unread", "info");
+                      }}
+                    >
+                      {thread.unread ? (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                          <circle cx="17" cy="8" r="4" className="fill-blue-500" />
+                          <path fill="none" stroke="currentColor" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
+
+                  {onArchive && (
+                    <button
+                      title="Archive"
+                      className="p-1.5 rounded-md text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onArchive(thread.id);
+                      }}
+                    >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                       </svg>
-                    ) : (
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                        <circle cx="17" cy="8" r="4" className="fill-blue-500" />
-                        <path fill="none" stroke="currentColor" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                      </svg>
-                    )}
-                  </button>
-                )}
+                    </button>
+                  )}
+                </div>
+              )}
 
-                {/* Archive */}
-                {onArchive && (
-                  <button
-                    title="Archive"
-                    className="p-1.5 rounded-md text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onArchive(thread.id);
-                      toast.show("Archived", "info", {
-                        label: "Undo",
-                        onClick: () => {
-                          // undo is handled by the parent
-                        },
-                      });
-                    }}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-
-              {/* Star always visible if starred (not hovered) */}
-              {thread.starred && (
+              {/* Star always visible if starred (not in selection mode, not hovered) */}
+              {thread.starred && !selectionMode && (
                 <div className="group-hover:hidden">
                   <StarIcon filled />
                 </div>

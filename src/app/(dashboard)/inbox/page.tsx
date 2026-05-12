@@ -14,6 +14,13 @@ import { useInboxContext } from "@/context/InboxContext";
 
 type FilterTab = "all" | "unread" | "attachments" | "starred";
 
+const EMPTY_STATE: Record<FilterTab, { icon: string; title: string; subtitle: string }> = {
+  all: { icon: "📭", title: "Inbox zero!", subtitle: "You're all caught up." },
+  unread: { icon: "✅", title: "All caught up!", subtitle: "No unread emails." },
+  attachments: { icon: "📎", title: "No attachments", subtitle: "Emails with files appear here." },
+  starred: { icon: "⭐", title: "No starred emails", subtitle: "Press S to star an email." },
+};
+
 export default function InboxPage() {
   const toast = useToast();
   const { setUnreadCount } = useInboxContext();
@@ -21,13 +28,13 @@ export default function InboxPage() {
   const [archived, setArchived] = useState<EmailThread[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<EmailThread | null>(null);
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [composeOpen, setComposeOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const archiveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
-  // Simulate loading delay for skeleton demo
   useEffect(() => {
     const t = setTimeout(() => {
       setThreads(MOCK_THREADS);
@@ -58,6 +65,9 @@ export default function InboxPage() {
     [filtered, selected]
   );
 
+  const allChecked = filtered.length > 0 && filtered.every((t) => checkedIds.has(t.id));
+  const someChecked = checkedIds.size > 0;
+
   const toggleStar = useCallback((id: string) => {
     setThreads((prev) =>
       prev.map((t) => (t.id === id ? { ...t, starred: !t.starred } : t))
@@ -82,12 +92,11 @@ export default function InboxPage() {
       const thread = threads.find((t) => t.id === id);
       if (!thread) return;
 
-      // Remove from inbox
       setThreads((prev) => prev.filter((t) => t.id !== id));
       setArchived((prev) => [thread, ...prev]);
       if (selected?.id === id) setSelected(null);
+      setCheckedIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
 
-      // Auto-purge archive entry after 10s (undo window)
       const timer = setTimeout(() => {
         setArchived((prev) => prev.filter((t) => t.id !== id));
         archiveTimers.current.delete(id);
@@ -97,12 +106,8 @@ export default function InboxPage() {
       toast.show("Archived", "info", {
         label: "Undo",
         onClick: () => {
-          // Cancel purge timer and restore
           const t = archiveTimers.current.get(id);
-          if (t) {
-            clearTimeout(t);
-            archiveTimers.current.delete(id);
-          }
+          if (t) { clearTimeout(t); archiveTimers.current.delete(id); }
           setArchived((prev) => prev.filter((t) => t.id !== id));
           setThreads((prev) => {
             if (prev.find((t) => t.id === id)) return prev;
@@ -117,9 +122,80 @@ export default function InboxPage() {
     [threads, selected, toast]
   );
 
+  const archiveBulk = useCallback(() => {
+    const ids = Array.from(checkedIds);
+    const count = ids.length;
+    const archivedThreads = threads.filter((t) => ids.includes(t.id));
+
+    setThreads((prev) => prev.filter((t) => !ids.includes(t.id)));
+    setArchived((prev) => [...archivedThreads, ...prev]);
+    if (selected && ids.includes(selected.id)) setSelected(null);
+    setCheckedIds(new Set());
+
+    const timers = ids.map((id) => {
+      const timer = setTimeout(() => {
+        setArchived((prev) => prev.filter((t) => t.id !== id));
+        archiveTimers.current.delete(id);
+      }, 10000);
+      archiveTimers.current.set(id, timer);
+      return { id, timer };
+    });
+
+    toast.show(`${count} archived`, "info", {
+      label: "Undo",
+      onClick: () => {
+        timers.forEach(({ id, timer }) => {
+          clearTimeout(timer);
+          archiveTimers.current.delete(id);
+        });
+        setArchived((prev) => prev.filter((t) => !ids.includes(t.id)));
+        setThreads((prev) => {
+          const existing = new Set(prev.map((t) => t.id));
+          const toRestore = archivedThreads.filter((t) => !existing.has(t.id));
+          return [...toRestore, ...prev].sort(
+            (a, b) => b.lastMessage.date.getTime() - a.lastMessage.date.getTime()
+          );
+        });
+        toast.show(`${count} restored`, "success");
+      },
+    });
+  }, [checkedIds, threads, selected, toast]);
+
+  const markReadBulk = useCallback(() => {
+    const ids = Array.from(checkedIds);
+    setThreads((prev) => prev.map((t) => ids.includes(t.id) ? { ...t, unread: false } : t));
+    setCheckedIds(new Set());
+    toast.show(`${ids.length} marked as read`, "info");
+  }, [checkedIds, toast]);
+
   function handleSelect(thread: EmailThread) {
+    if (someChecked) {
+      // In selection mode, clicking selects/deselects
+      setCheckedIds((prev) => {
+        const n = new Set(prev);
+        n.has(thread.id) ? n.delete(thread.id) : n.add(thread.id);
+        return n;
+      });
+      return;
+    }
     setSelected(thread);
     markRead(thread.id);
+  }
+
+  function toggleCheck(id: string) {
+    setCheckedIds((prev) => {
+      const n = new Set(prev);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (allChecked) {
+      setCheckedIds(new Set());
+    } else {
+      setCheckedIds(new Set(filtered.map((t) => t.id)));
+    }
   }
 
   const unreadCount = threads.filter((t) => t.unread).length;
@@ -181,8 +257,11 @@ export default function InboxPage() {
     },
     {
       key: "Escape",
-      description: "Back to list",
-      handler: () => setSelected(null),
+      description: "Back / clear selection",
+      handler: () => {
+        if (someChecked) { setCheckedIds(new Set()); return; }
+        setSelected(null);
+      },
     },
     {
       key: "c",
@@ -202,6 +281,8 @@ export default function InboxPage() {
     { id: "attachments", label: "Attachments" },
     { id: "starred", label: "Starred", count: starredCount || undefined },
   ];
+
+  const emptyState = EMPTY_STATE[activeTab];
 
   return (
     <div className="flex h-full">
@@ -258,27 +339,63 @@ export default function InboxPage() {
             )}
           </div>
 
-          {/* Filter tabs */}
-          <div className="flex overflow-x-auto">
-            {tabs.map((tab) => (
+          {/* Bulk action bar (replaces tabs when selection is active) */}
+          {someChecked ? (
+            <div className="flex items-center gap-2 py-1.5">
+              <input
+                type="checkbox"
+                checked={allChecked}
+                onChange={toggleSelectAll}
+                className="w-3.5 h-3.5 rounded accent-blue-500 cursor-pointer"
+              />
+              <span className="text-xs font-medium text-gray-700 flex-1">
+                {checkedIds.size} selected
+              </span>
               <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex-shrink-0 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
-                  activeTab === tab.id
-                    ? "border-blue-500 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700"
-                }`}
+                onClick={markReadBulk}
+                className="text-xs text-gray-600 hover:text-blue-600 px-2 py-1 rounded hover:bg-blue-50 transition-colors font-medium"
               >
-                {tab.label}
-                {tab.count != null && tab.count > 0 && (
-                  <span className="ml-1.5 text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
-                    {tab.count}
-                  </span>
-                )}
+                Mark read
               </button>
-            ))}
-          </div>
+              <button
+                onClick={archiveBulk}
+                className="text-xs text-gray-600 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100 transition-colors font-medium"
+              >
+                Archive
+              </button>
+              <button
+                onClick={() => setCheckedIds(new Set())}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="Clear selection"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          ) : (
+            /* Filter tabs */
+            <div className="flex overflow-x-auto">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex-shrink-0 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
+                    activeTab === tab.id
+                      ? "border-blue-500 text-blue-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  {tab.label}
+                  {tab.count != null && tab.count > 0 && (
+                    <span className="ml-1.5 text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {search && !loading && (
@@ -294,10 +411,13 @@ export default function InboxPage() {
             <EmailList
               threads={filtered}
               selectedId={selected?.id ?? null}
+              checkedIds={checkedIds}
               onSelect={handleSelect}
+              onToggleCheck={toggleCheck}
               onToggleStar={toggleStar}
               onArchive={archive}
               onToggleRead={toggleRead}
+              emptyState={emptyState}
             />
           )}
         </div>

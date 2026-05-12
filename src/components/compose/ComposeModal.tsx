@@ -24,6 +24,7 @@ interface ComposeModalProps {
   onClose: () => void;
   mode?: ComposeMode;
   replyTo?: ReplyTo;
+  initialBody?: string;
 }
 
 const FOLLOWUP_OPTIONS = [
@@ -69,7 +70,7 @@ function AttachmentRow({ att, onRemove }: { att: Attachment; onRemove: (id: stri
   );
 }
 
-export function ComposeModal({ open, onClose, mode = "reply", replyTo }: ComposeModalProps) {
+export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBody }: ComposeModalProps) {
   const isNew = mode === "new" || !replyTo;
 
   const [sendMode, setSendMode] = useState<"now" | "scheduled">(
@@ -85,7 +86,7 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo }: Compose
   const [cc, setCc] = useState("");
   const [bcc, setBcc] = useState("");
   const [subject, setSubject] = useState(replyTo ? `Re: ${replyTo.subject}` : "");
-  const [body, setBody] = useState("");
+  const [body, setBody] = useState(initialBody ?? "");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
@@ -93,9 +94,10 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo }: Compose
   const [draftRestored, setDraftRestored] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Restore draft on open
+  // Restore draft on open (skip if quick reply body was provided)
   useEffect(() => {
     if (!open) return;
+    if (initialBody) return; // quick reply — don't restore draft
     try {
       const saved = localStorage.getItem(draftKey(mode, replyTo?.threadId));
       if (saved) {

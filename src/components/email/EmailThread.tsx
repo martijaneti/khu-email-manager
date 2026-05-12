@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { EmailThread as EmailThreadType, EmailMessage, getInitials, getAvatarColor } from "@/lib/mock-data";
 import { ComposeModal } from "@/components/compose/ComposeModal";
 import { Button } from "@/components/ui/Button";
@@ -9,6 +9,43 @@ interface EmailThreadProps {
   thread: EmailThreadType;
   onBack?: () => void;
   onToggleStar?: (id: string) => void;
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // ignore clipboard errors
+    }
+  }, [text]);
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+    >
+      {copied ? (
+        <>
+          <svg className="w-3.5 h-3.5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          <span className="text-green-600">Copied</span>
+        </>
+      ) : (
+        <>
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+          Copy
+        </>
+      )}
+    </button>
+  );
 }
 
 function AttachmentPill({ name, size, type }: { name: string; size: string; type: string }) {
@@ -124,31 +161,57 @@ function MessageItem({
           </div>
 
           {msg.attachments && msg.attachments.length > 0 && (
-            <div className="ml-11 flex flex-wrap gap-2">
+            <div className="ml-11 flex flex-wrap gap-2 mt-2">
               {msg.attachments.map((att) => (
                 <AttachmentPill key={att.name} {...att} />
               ))}
             </div>
           )}
+
+          <div className="ml-11 mt-2">
+            <CopyButton text={msg.body} />
+          </div>
         </>
       )}
     </div>
   );
 }
 
+function getQuickReplies(lastBody: string, subject: string): string[] {
+  const lower = (lastBody + " " + subject).toLowerCase();
+  if (lower.includes("available") || lower.includes("free") || lower.includes("chat") || lower.includes("sync") || lower.includes("call")) {
+    return ["Sounds good, let's do it!", "I'm free Thursday afternoon.", "Let me check my calendar and get back to you."];
+  }
+  if (lower.includes("proposal") || lower.includes("terms") || lower.includes("review") || lower.includes("partnership")) {
+    return ["Thanks, I'll review and get back to you.", "Looks good overall — a few questions...", "Can we schedule a call to discuss?"];
+  }
+  if (lower.includes("invoice") || lower.includes("payment") || lower.includes("receipt")) {
+    return ["Received, thank you!", "Could you resend the invoice?", "I'll forward this to accounting."];
+  }
+  if (lower.includes("follow") || lower.includes("follow-up") || lower.includes("following up")) {
+    return ["Thanks for following up!", "Sorry for the delay — working on it.", "I'll have an answer for you by EOD."];
+  }
+  return ["Thanks for reaching out!", "Noted, I'll get back to you soon.", "Sounds good!"];
+}
+
 export function EmailThreadView({ thread, onBack, onToggleStar }: EmailThreadProps) {
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeMode, setComposeMode] = useState<"reply" | "scheduled" | "followup" | "new">("reply");
   const [forwardTo, setForwardTo] = useState<{ email: string; name: string; subject: string; threadId?: string } | undefined>();
+  const [quickReplyBody, setQuickReplyBody] = useState<string | undefined>();
 
-  function openCompose(mode: "reply" | "scheduled" | "followup") {
+  const quickReplies = getQuickReplies(thread.lastMessage.body, thread.subject);
+
+  function openCompose(mode: "reply" | "scheduled" | "followup", body?: string) {
     setComposeMode(mode);
     setForwardTo(undefined);
+    setQuickReplyBody(body);
     setComposeOpen(true);
   }
 
   function openForward() {
     setComposeMode("new");
+    setQuickReplyBody(undefined);
     setForwardTo({
       email: "",
       name: "",
@@ -233,16 +296,6 @@ export function EmailThreadView({ thread, onBack, onToggleStar }: EmailThreadPro
         );
       })()}
 
-      {/* Message count badge for multi-message threads */}
-      {thread.messages.length > 1 && (
-        <div className="mx-5 mt-3 flex items-center gap-2">
-          <div className="h-px flex-1 bg-gray-100" />
-          <span className="text-xs text-gray-400 font-medium">
-            {thread.messages.length} messages
-          </span>
-          <div className="h-px flex-1 bg-gray-100" />
-        </div>
-      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
@@ -257,18 +310,34 @@ export function EmailThreadView({ thread, onBack, onToggleStar }: EmailThreadPro
       </div>
 
       {/* Quick reply bar */}
-      <div className="px-5 py-3 border-t border-gray-100 bg-gray-50">
+      <div className="px-5 pt-3 pb-2 border-t border-gray-100 bg-gray-50 space-y-2">
         <button
           onClick={() => openCompose("reply")}
           className="w-full text-left text-sm text-gray-400 bg-white border border-gray-200 rounded-xl px-4 py-2.5 hover:border-blue-300 hover:text-gray-600 transition-colors"
         >
           Reply to {thread.lastMessage.from}…
         </button>
+
+        {/* AI quick reply suggestions */}
+        <div className="flex items-center gap-1.5 flex-wrap pb-1">
+          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide flex-shrink-0">
+            AI
+          </span>
+          {quickReplies.map((suggestion) => (
+            <button
+              key={suggestion}
+              onClick={() => openCompose("reply", suggestion)}
+              className="text-xs text-gray-600 bg-white border border-gray-200 rounded-full px-2.5 py-1 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-colors truncate max-w-[200px]"
+            >
+              {suggestion}
+            </button>
+          ))}
+        </div>
       </div>
 
       <ComposeModal
         open={composeOpen}
-        onClose={() => setComposeOpen(false)}
+        onClose={() => { setComposeOpen(false); setQuickReplyBody(undefined); }}
         mode={composeMode}
         replyTo={
           forwardTo ?? {
@@ -278,6 +347,7 @@ export function EmailThreadView({ thread, onBack, onToggleStar }: EmailThreadPro
             threadId: thread.id,
           }
         }
+        initialBody={quickReplyBody}
       />
     </div>
   );

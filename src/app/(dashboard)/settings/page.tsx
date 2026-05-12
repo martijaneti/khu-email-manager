@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { MOCK_THREADS, MOCK_SENT, MOCK_SCHEDULED } from "@/lib/mock-data";
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -228,6 +229,25 @@ export default function SettingsPage() {
               Disconnect
             </button>
           </SettingRow>
+        </Section>
+
+        {/* Stats */}
+        <Section title="Mailbox statistics">
+          <div className="py-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
+            {[
+              { label: "Inbox emails", value: MOCK_THREADS.length },
+              { label: "Unread", value: MOCK_THREADS.filter((t) => t.unread).length },
+              { label: "Starred", value: MOCK_THREADS.filter((t) => t.starred).length },
+              { label: "With attachments", value: MOCK_THREADS.filter((t) => t.hasAttachments).length },
+              { label: "Sent emails", value: MOCK_SENT.length },
+              { label: "Scheduled", value: MOCK_SCHEDULED.length },
+            ].map((stat) => (
+              <div key={stat.label} className="bg-gray-50 rounded-xl p-3 text-center">
+                <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{stat.label}</p>
+              </div>
+            ))}
+          </div>
         </Section>
 
         <p className="text-center text-xs text-gray-400 pb-4">

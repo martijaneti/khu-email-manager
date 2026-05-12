@@ -80,6 +80,7 @@ export default function InboxPage() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
+  const [sortAsc, setSortAsc] = useState(false);
   const archiveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   useEffect(() => {
@@ -139,8 +140,9 @@ export default function InboxPage() {
     if (activeTab === "attachments") result = result.filter((t) => t.hasAttachments);
     if (activeTab === "starred") result = result.filter((t) => t.starred);
     if (activeTab === "important") result = result.filter((t) => t.labels.includes("important"));
+    if (sortAsc) result = [...result].sort((a, b) => a.lastMessage.date.getTime() - b.lastMessage.date.getTime());
     return result;
-  }, [threads, search, activeTab]);
+  }, [threads, search, activeTab, sortAsc]);
 
   const selectedIdx = useMemo(
     () => filtered.findIndex((t) => t.id === selected?.id),
@@ -298,6 +300,13 @@ export default function InboxPage() {
     setCheckedIds(new Set());
     toast.show(`${ids.length} marked as read`, "info");
   }, [checkedIds, toast]);
+
+  const markAllRead = useCallback(() => {
+    const count = threads.filter((t) => t.unread).length;
+    if (!count) return;
+    setThreads((prev) => prev.map((t) => ({ ...t, unread: false })));
+    toast.show(`${count} email${count !== 1 ? "s" : ""} marked as read`, "info");
+  }, [threads, toast]);
 
   function handleSelect(thread: EmailThread) {
     if (someChecked) {
@@ -465,6 +474,30 @@ export default function InboxPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </button>
+              {/* Sort toggle */}
+              <button
+                onClick={() => setSortAsc((v) => !v)}
+                title={sortAsc ? "Oldest first" : "Newest first"}
+                className="text-gray-300 hover:text-gray-500 transition-colors"
+                aria-label="Toggle sort order"
+              >
+                <svg className={`w-3.5 h-3.5 transition-transform ${sortAsc ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                </svg>
+              </button>
+              {/* Mark all read */}
+              {unreadCount > 0 && (
+                <button
+                  onClick={markAllRead}
+                  title="Mark all as read"
+                  className="text-gray-300 hover:text-blue-500 transition-colors"
+                  aria-label="Mark all as read"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </button>
+              )}
             </div>
             <Button variant="primary" size="sm" onClick={() => setComposeOpen(true)}>
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

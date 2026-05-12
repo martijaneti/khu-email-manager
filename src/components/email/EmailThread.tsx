@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { EmailThread as EmailThreadType, EmailMessage, getInitials, getAvatarColor } from "@/lib/mock-data";
 import { ComposeModal } from "@/components/compose/ComposeModal";
 import { Button } from "@/components/ui/Button";
@@ -384,23 +384,32 @@ function MessageItem({
   );
 }
 
-function renderInline(text: string): React.ReactNode[] {
+function renderInline(text: string, highlight?: string): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
   const re = /(\*\*(.+?)\*\*|_(.+?)_|\[(.+?)\]\((.+?)\))/g;
   let last = 0;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
-    if (m.index > last) parts.push(text.slice(last, m.index));
+    if (m.index > last) parts.push(...highlightText(text.slice(last, m.index), highlight, `p${m.index}`));
     if (m[0].startsWith("**")) parts.push(<strong key={m.index}>{m[2]}</strong>);
     else if (m[0].startsWith("_")) parts.push(<em key={m.index}>{m[3]}</em>);
     else parts.push(<a key={m.index} href={m[5]} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800">{m[4]}</a>);
     last = m.index + m[0].length;
   }
-  if (last < text.length) parts.push(text.slice(last));
+  if (last < text.length) parts.push(...highlightText(text.slice(last), highlight, `end${last}`));
   return parts;
 }
 
-function RenderBody({ body }: { body: string }) {
+function highlightText(text: string, query: string | undefined, keyPrefix: string): React.ReactNode[] {
+  if (!query || query.length < 2) return [text];
+  const re = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi");
+  const chunks = text.split(re);
+  return chunks.map((chunk, i) =>
+    re.test(chunk) ? <mark key={`${keyPrefix}-${i}`} className="bg-yellow-200 text-yellow-900 rounded-sm px-0.5">{chunk}</mark> : chunk
+  );
+}
+
+function RenderBody({ body, highlight }: { body: string; highlight?: string }) {
   const lines = body.split("\n");
   return (
     <div className="text-sm text-gray-700 leading-relaxed space-y-0.5">
@@ -412,7 +421,7 @@ function RenderBody({ body }: { body: string }) {
           return (
             <div key={i} className="flex gap-2">
               <span className="text-gray-400 flex-shrink-0">•</span>
-              <span>{renderInline(line.replace(/^[•\-\*] /, ""))}</span>
+              <span>{renderInline(line.replace(/^[•\-\*] /, ""), highlight)}</span>
             </div>
           );
         }
@@ -421,12 +430,12 @@ function RenderBody({ body }: { body: string }) {
           return (
             <div key={i} className="flex gap-2">
               <span className="text-gray-400 flex-shrink-0 w-4 text-right">{num}.</span>
-              <span>{renderInline(line.replace(/^\d+\. /, ""))}</span>
+              <span>{renderInline(line.replace(/^\d+\. /, ""), highlight)}</span>
             </div>
           );
         }
         if (line.trim() === "") return <div key={i} className="h-2" />;
-        return <div key={i}>{renderInline(line)}</div>;
+        return <div key={i}>{renderInline(line, highlight)}</div>;
       })}
     </div>
   );

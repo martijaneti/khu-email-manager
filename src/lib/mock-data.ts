@@ -119,7 +119,7 @@ Head of Partnerships, ACME Corp`,
     subject: "Invoice #4821 — Payment Confirmation",
     participants: ["billing@stripe.com", "you"],
     unread: false,
-    labels: [],
+    labels: ["finance"],
     hasAttachments: true,
     lastMessage: {
       from: "Stripe",
@@ -151,9 +151,9 @@ The Stripe Team`,
   {
     id: "t3",
     subject: "Team standup notes — May 12",
-    participants: ["alex@team.com", "priya@team.com", "you"],
+    participants: ["Alex Kim", "Priya Patel", "you"],
     unread: true,
-    labels: [],
+    labels: ["work"],
     hasAttachments: false,
     aiSummary: "Team standup notes covering blockers (design review, flaky CI), completed items (v2.1 launch, auth fix), and today's action items for Alex, Priya, and you (quarterly report draft).",
     lastMessage: {
@@ -207,9 +207,9 @@ Let me know if I missed anything!`,
   {
     id: "t4",
     subject: "Your GitHub Copilot subscription renewal",
-    participants: ["noreply@github.com", "you"],
+    participants: ["GitHub", "you"],
     unread: false,
-    labels: [],
+    labels: ["finance"],
     hasAttachments: false,
     lastMessage: {
       from: "GitHub",
@@ -393,13 +393,21 @@ export const KNOWN_CONTACTS: Contact[] = [
   { name: "Marco Rivera", email: "marco@startup.io" },
 ];
 
-const NEW_EMAIL_POOL: Omit<EmailThread, "id">[] = [
+function autoLabel(subject: string, body: string): string[] {
+  const text = `${subject} ${body}`.toLowerCase();
+  const labels: string[] = [];
+  if (/invoice|payment|receipt|billing|subscription|charge|refund|stripe|paypal|bank|statement/.test(text)) labels.push("finance");
+  else if (/meeting|standup|stand-up|pull request|sprint|deploy|release|quarterly|report|pipeline|ci\/cd|jira|ticket/.test(text)) labels.push("work");
+  else if (/flight|hotel|booking|reservation|trip|itinerary|departure|arrival|airbnb|airline|passport/.test(text)) labels.push("travel");
+  return labels;
+}
+
+const NEW_EMAIL_POOL: Omit<EmailThread, "id" | "labels">[] = [
   {
     subject: "Quick question about your availability",
-    participants: ["jamie@design.co", "you"],
+    participants: ["Jamie Lee", "you"],
     unread: true,
     starred: false,
-    labels: [],
     hasAttachments: false,
     lastMessage: {
       from: "Jamie Lee",
@@ -433,10 +441,9 @@ Jamie`,
   },
   {
     subject: "Your order has shipped!",
-    participants: ["orders@shop.io", "you"],
+    participants: ["Shop.io Orders", "you"],
     unread: true,
     starred: false,
-    labels: [],
     hasAttachments: false,
     lastMessage: {
       from: "Shop.io Orders",
@@ -472,6 +479,194 @@ Thank you for your purchase!
       },
     ],
   },
+  {
+    subject: "Invoice #2847 from Vercel — payment due",
+    participants: ["billing@vercel.com", "you"],
+    unread: true,
+    starred: false,
+    hasAttachments: true,
+    aiSummary: "Vercel has sent invoice #2847 for $49/mo Pro plan. Payment is due in 7 days.",
+    lastMessage: {
+      from: "Vercel Billing",
+      fromEmail: "billing@vercel.com",
+      preview: "Your invoice #2847 for $49.00 is ready. Payment due in 7 days.",
+      body: `Hi there,
+
+Your invoice #2847 is ready.
+
+**Plan:** Pro (monthly)
+**Amount:** $49.00
+**Due:** 7 days from today
+
+You can view and download your invoice from the billing dashboard.
+
+— Vercel Billing`,
+      date: new Date(),
+    },
+    messages: [
+      {
+        id: "new_m3",
+        from: "Vercel Billing",
+        fromEmail: "billing@vercel.com",
+        to: ["you@gmail.com"],
+        date: new Date(),
+        attachments: [{ name: "invoice-2847.pdf", size: "98 KB", type: "pdf" }],
+        body: `Hi there,
+
+Your invoice #2847 is ready.
+
+**Plan:** Pro (monthly)
+**Amount:** $49.00
+**Due:** 7 days from today
+
+You can view and download your invoice from the billing dashboard.
+
+— Vercel Billing`,
+      },
+    ],
+  },
+  {
+    subject: "Sprint planning standup — notes & next steps",
+    participants: ["Alex Kim", "Priya Patel", "you"],
+    unread: true,
+    starred: false,
+    hasAttachments: false,
+    aiSummary: "Alex shared sprint planning notes. Key items: finalize Q2 roadmap, unblock CI pipeline issue, schedule design review by Friday.",
+    lastMessage: {
+      from: "Alex Kim",
+      fromEmail: "alex@team.com",
+      preview: "Hey team, sharing the standup notes from today. Three key items need action this week.",
+      body: `Hey team,
+
+Sharing the standup notes from today's sprint planning.
+
+**Action items this week:**
+- Finalize Q2 roadmap (owner: Priya, due Thu)
+- Unblock CI pipeline — the deploy is stuck on the env var issue
+- Schedule design review by Friday
+
+I'll send a calendar invite for the design review once everyone confirms availability.
+
+Alex`,
+      date: new Date(),
+    },
+    messages: [
+      {
+        id: "new_m4",
+        from: "Alex Kim",
+        fromEmail: "alex@team.com",
+        to: ["you@gmail.com", "priya@team.com"],
+        date: new Date(),
+        body: `Hey team,
+
+Sharing the standup notes from today's sprint planning.
+
+**Action items this week:**
+- Finalize Q2 roadmap (owner: Priya, due Thu)
+- Unblock CI pipeline — the deploy is stuck on the env var issue
+- Schedule design review by Friday
+
+I'll send a calendar invite for the design review once everyone confirms availability.
+
+Alex`,
+      },
+    ],
+  },
+  {
+    subject: "Flight confirmation — SFO → JFK, May 20",
+    participants: ["noreply@airline.com", "you"],
+    unread: true,
+    starred: false,
+    hasAttachments: true,
+    aiSummary: "Flight booking confirmed: SFO to JFK on May 20, departing 8:15 AM. Booking reference KHU429.",
+    lastMessage: {
+      from: "United Airlines",
+      fromEmail: "noreply@airline.com",
+      preview: "Your flight SFO → JFK on May 20 is confirmed. Booking reference: KHU429.",
+      body: `Your booking is confirmed!
+
+**Flight:** UA 412
+**Route:** SFO → JFK
+**Date:** May 20
+**Departure:** 8:15 AM
+**Arrival:** 4:42 PM
+**Booking ref:** KHU429
+
+Check in online starting 24 hours before departure. Don't forget your passport!
+
+Safe travels,
+United Airlines`,
+      date: new Date(),
+    },
+    messages: [
+      {
+        id: "new_m5",
+        from: "United Airlines",
+        fromEmail: "noreply@airline.com",
+        to: ["you@gmail.com"],
+        date: new Date(),
+        attachments: [{ name: "boarding-pass-KHU429.pdf", size: "210 KB", type: "pdf" }],
+        body: `Your booking is confirmed!
+
+**Flight:** UA 412
+**Route:** SFO → JFK
+**Date:** May 20
+**Departure:** 8:15 AM
+**Arrival:** 4:42 PM
+**Booking ref:** KHU429
+
+Check in online starting 24 hours before departure. Don't forget your passport!
+
+Safe travels,
+United Airlines`,
+      },
+    ],
+  },
+  {
+    subject: "Pull request review requested — feat/user-settings",
+    participants: ["noreply@github.com", "you"],
+    unread: true,
+    starred: false,
+    hasAttachments: false,
+    aiSummary: "Priya Patel requested your review on the feat/user-settings pull request. 3 files changed, 142 additions.",
+    lastMessage: {
+      from: "GitHub",
+      fromEmail: "noreply@github.com",
+      preview: "Priya Patel requested your review on pull request #142: feat/user-settings.",
+      body: `Priya Patel requested your review on:
+
+**feat/user-settings** (#142)
+
+> Adds user-level density and notification preferences to the settings panel. Persists to localStorage.
+
+**Changes:** 3 files, +142 −18
+
+View the pull request on GitHub to leave your review.
+
+— GitHub`,
+      date: new Date(),
+    },
+    messages: [
+      {
+        id: "new_m6",
+        from: "GitHub",
+        fromEmail: "noreply@github.com",
+        to: ["you@gmail.com"],
+        date: new Date(),
+        body: `Priya Patel requested your review on:
+
+**feat/user-settings** (#142)
+
+> Adds user-level density and notification preferences to the settings panel. Persists to localStorage.
+
+**Changes:** 3 files, +142 −18
+
+View the pull request on GitHub to leave your review.
+
+— GitHub`,
+      },
+    ],
+  },
 ];
 
 let newEmailIdx = 0;
@@ -479,8 +674,10 @@ export function generateNewEmail(): EmailThread {
   const template = NEW_EMAIL_POOL[newEmailIdx % NEW_EMAIL_POOL.length];
   newEmailIdx++;
   const now = new Date();
+  const labels = autoLabel(template.subject, template.lastMessage.body);
   return {
     ...template,
+    labels,
     id: `new_${Date.now()}`,
     lastMessage: { ...template.lastMessage, date: now },
     messages: template.messages.map((m) => ({ ...m, id: `${m.id}_${Date.now()}`, date: now })),

@@ -145,13 +145,20 @@ export function EmailList({
                 </div>
               </div>
 
-              <p
-                className={`text-xs mb-1 truncate ${
-                  thread.unread ? "font-medium text-gray-800" : "text-gray-600"
-                }`}
-              >
-                <Highlight text={thread.subject} query={searchQuery} />
-              </p>
+              <div className="flex items-center gap-1.5 mb-1">
+                {thread.labels.includes("important") && (
+                  <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">
+                    Important
+                  </span>
+                )}
+                <p
+                  className={`text-xs truncate ${
+                    thread.unread ? "font-medium text-gray-800" : "text-gray-600"
+                  }`}
+                >
+                  <Highlight text={thread.subject} query={searchQuery} />
+                </p>
+              </div>
 
               <p className="text-xs text-gray-400 truncate">
                 <Highlight text={thread.lastMessage.preview} query={searchQuery} />

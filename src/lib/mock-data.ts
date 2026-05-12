@@ -393,6 +393,100 @@ export const KNOWN_CONTACTS: Contact[] = [
   { name: "Marco Rivera", email: "marco@startup.io" },
 ];
 
+const NEW_EMAIL_POOL: Omit<EmailThread, "id">[] = [
+  {
+    subject: "Quick question about your availability",
+    participants: ["jamie@design.co", "you"],
+    unread: true,
+    starred: false,
+    labels: [],
+    hasAttachments: false,
+    lastMessage: {
+      from: "Jamie Lee",
+      fromEmail: "jamie@design.co",
+      preview: "Hey! Are you free for a quick 15-min sync this week? I have some ideas I'd love to bounce off you.",
+      body: `Hey!
+
+Are you free for a quick 15-min sync this week? I have some ideas I'd love to bounce off you.
+
+Tuesday or Wednesday afternoon work best for me.
+
+Jamie`,
+      date: new Date(),
+    },
+    messages: [
+      {
+        id: "new_m1",
+        from: "Jamie Lee",
+        fromEmail: "jamie@design.co",
+        to: ["you@gmail.com"],
+        date: new Date(),
+        body: `Hey!
+
+Are you free for a quick 15-min sync this week? I have some ideas I'd love to bounce off you.
+
+Tuesday or Wednesday afternoon work best for me.
+
+Jamie`,
+      },
+    ],
+  },
+  {
+    subject: "Your order has shipped!",
+    participants: ["orders@shop.io", "you"],
+    unread: true,
+    starred: false,
+    labels: [],
+    hasAttachments: false,
+    lastMessage: {
+      from: "Shop.io Orders",
+      fromEmail: "orders@shop.io",
+      preview: "Your order #78421 has shipped and is on its way. Estimated delivery: 2-3 business days.",
+      body: `Your order #78421 has shipped and is on its way.
+
+Estimated delivery: 2-3 business days.
+
+Track your package at track.shop.io/78421
+
+Thank you for your purchase!
+
+— The Shop.io Team`,
+      date: new Date(),
+    },
+    messages: [
+      {
+        id: "new_m2",
+        from: "Shop.io Orders",
+        fromEmail: "orders@shop.io",
+        to: ["you@gmail.com"],
+        date: new Date(),
+        body: `Your order #78421 has shipped and is on its way.
+
+Estimated delivery: 2-3 business days.
+
+Track your package at track.shop.io/78421
+
+Thank you for your purchase!
+
+— The Shop.io Team`,
+      },
+    ],
+  },
+];
+
+let newEmailIdx = 0;
+export function generateNewEmail(): EmailThread {
+  const template = NEW_EMAIL_POOL[newEmailIdx % NEW_EMAIL_POOL.length];
+  newEmailIdx++;
+  const now = new Date();
+  return {
+    ...template,
+    id: `new_${Date.now()}`,
+    lastMessage: { ...template.lastMessage, date: now },
+    messages: template.messages.map((m) => ({ ...m, id: `${m.id}_${Date.now()}`, date: now })),
+  };
+}
+
 export function formatRelativeTime(date: Date): string {
   const now = Date.now();
   const diff = now - date.getTime();

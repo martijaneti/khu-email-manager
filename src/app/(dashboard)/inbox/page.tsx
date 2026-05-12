@@ -7,7 +7,7 @@ import { EmailThreadView } from "@/components/email/EmailThread";
 import { ComposeModal } from "@/components/compose/ComposeModal";
 import { ShortcutsModal } from "@/components/ui/ShortcutsModal";
 import { Button } from "@/components/ui/Button";
-import { MOCK_THREADS, EmailThread } from "@/lib/mock-data";
+import { MOCK_THREADS, EmailThread, generateNewEmail } from "@/lib/mock-data";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useToast } from "@/context/ToastContext";
 import { useInboxContext } from "@/context/InboxContext";
@@ -85,6 +85,23 @@ export default function InboxPage() {
       setLoading(false);
     }, 600);
     return () => clearTimeout(t);
+  }, []);
+
+  // Simulate new email arriving every ~45s
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const newEmail = generateNewEmail();
+      setThreads((prev) => [newEmail, ...prev]);
+      toast.show(`New message from ${newEmail.lastMessage.from}`, "info", {
+        label: "Open",
+        onClick: () => {
+          setSelected(newEmail);
+          setThreads((prev) => prev.map((t) => t.id === newEmail.id ? { ...t, unread: false } : t));
+        },
+      });
+    }, 45000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filtered = useMemo(() => {

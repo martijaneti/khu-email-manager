@@ -5,10 +5,58 @@ import { EmailThread as EmailThreadType, EmailMessage, getInitials, getAvatarCol
 import { ComposeModal } from "@/components/compose/ComposeModal";
 import { Button } from "@/components/ui/Button";
 
+function MoreActionsMenu({ thread, onArchive, onDelete }: {
+  thread: EmailThreadType;
+  onArchive?: (id: string) => void;
+  onDelete?: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const actions = [
+    ...(onArchive ? [{ label: "Archive", icon: "🗂️", onClick: () => { onArchive(thread.id); setOpen(false); } }] : []),
+    ...(onDelete ? [{ label: "Delete", icon: "🗑️", onClick: () => { onDelete(thread.id); setOpen(false); } }] : []),
+    { label: "Mark as spam", icon: "🚫", onClick: () => { setOpen(false); } },
+    { label: "Block sender", icon: "⛔", onClick: () => { setOpen(false); } },
+  ];
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+        aria-label="More actions"
+      >
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+          <circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" />
+        </svg>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-44 overflow-hidden">
+            {actions.map((a) => (
+              <button
+                key={a.label}
+                onClick={a.onClick}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left"
+              >
+                <span>{a.icon}</span>
+                {a.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 interface EmailThreadProps {
   thread: EmailThreadType;
   onBack?: () => void;
   onToggleStar?: (id: string) => void;
+  onArchive?: (id: string) => void;
+  onDelete?: (id: string) => void;
 }
 
 function CopyButton({ text }: { text: string }) {
@@ -263,7 +311,7 @@ function getQuickReplies(lastBody: string, subject: string): string[] {
   return ["Thanks for reaching out!", "Noted, I'll get back to you soon.", "Sounds good!"];
 }
 
-export function EmailThreadView({ thread, onBack, onToggleStar }: EmailThreadProps) {
+export function EmailThreadView({ thread, onBack, onToggleStar, onArchive, onDelete }: EmailThreadProps) {
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeMode, setComposeMode] = useState<"reply" | "scheduled" | "followup" | "new">("reply");
   const [forwardTo, setForwardTo] = useState<{ email: string; name: string; subject: string; threadId?: string } | undefined>();
@@ -351,6 +399,7 @@ export function EmailThreadView({ thread, onBack, onToggleStar }: EmailThreadPro
             </svg>
             Reply
           </Button>
+          <MoreActionsMenu thread={thread} onArchive={onArchive} onDelete={onDelete} />
         </div>
       </div>
 

@@ -1,9 +1,63 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { RecipientInput } from "./RecipientInput";
+
+function insertFormatting(
+  textarea: HTMLTextAreaElement,
+  wrapper: [string, string] | null,
+  template?: string,
+  onUpdate?: (newVal: string) => void
+) {
+  const { selectionStart: start, selectionEnd: end, value } = textarea;
+  const selection = value.slice(start, end);
+
+  let newText: string;
+  let newStart: number;
+  let newEnd: number;
+
+  if (template) {
+    newText = value.slice(0, start) + template + value.slice(end);
+    newStart = start;
+    newEnd = start + template.length;
+  } else if (wrapper) {
+    const [open, close] = wrapper;
+    const inner = selection || "text";
+    newText = value.slice(0, start) + open + inner + close + value.slice(end);
+    newStart = start + open.length;
+    newEnd = newStart + inner.length;
+  } else {
+    return;
+  }
+
+  onUpdate?.(newText);
+  // Restore cursor after React re-render
+  requestAnimationFrame(() => {
+    textarea.setSelectionRange(newStart, newEnd);
+    textarea.focus();
+  });
+}
+
+interface FormatButtonProps {
+  title: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}
+
+function FormatButton({ title, onClick, children }: FormatButtonProps) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onMouseDown={(e) => { e.preventDefault(); onClick(); }}
+      className="px-2 py-1 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded text-xs font-mono transition-colors"
+    >
+      {children}
+    </button>
+  );
+}
 
 type ComposeMode = "reply" | "scheduled" | "followup" | "new";
 
@@ -93,6 +147,7 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBo
   const [showCcBcc, setShowCcBcc] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Restore draft on open (skip if quick reply body was provided)
   useEffect(() => {
@@ -271,24 +326,49 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBo
           </div>
         </div>
 
-        {/* Body */}
-        <div className="relative">
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder={
-              mode === "followup"
-                ? "Follow-up message if they don't reply…"
-                : "Write your message…"
-            }
-            rows={8}
-            className="w-full text-sm text-gray-800 focus:outline-none resize-none placeholder-gray-300 leading-relaxed"
-          />
-          {body.length > 0 && (
-            <div className="absolute bottom-1 right-0 text-[10px] text-gray-300 select-none">
-              {body.split(/\s+/).filter(Boolean).length} words · {body.length} chars
-            </div>
-          )}
+        {/* Formatting toolbar + Body */}
+        <div className="border border-gray-200 rounded-xl overflow-hidden">
+          <div className="flex items-center gap-0.5 px-2 py-1 border-b border-gray-100 bg-gray-50">
+            <FormatButton title="Bold" onClick={() => insertFormatting(textareaRef.current!, ["**", "**"], undefined, setBody)}>
+              <strong>B</strong>
+            </FormatButton>
+            <FormatButton title="Italic" onClick={() => insertFormatting(textareaRef.current!, ["_", "_"], undefined, setBody)}>
+              <em>I</em>
+            </FormatButton>
+            <FormatButton title="Link" onClick={() => insertFormatting(textareaRef.current!, null, "[link text](url)", setBody)}>
+              🔗
+            </FormatButton>
+            <div className="w-px h-4 bg-gray-200 mx-1" />
+            <FormatButton title="Bullet list" onClick={() => insertFormatting(textareaRef.current!, null, "\n• ", setBody)}>
+              ≡
+            </FormatButton>
+            <FormatButton title="Numbered list" onClick={() => insertFormatting(textareaRef.current!, null, "\n1. ", setBody)}>
+              1.
+            </FormatButton>
+            <div className="w-px h-4 bg-gray-200 mx-1" />
+            <FormatButton title="Horizontal rule" onClick={() => insertFormatting(textareaRef.current!, null, "\n---\n", setBody)}>
+              —
+            </FormatButton>
+          </div>
+          <div className="relative p-3">
+            <textarea
+              ref={textareaRef}
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder={
+                mode === "followup"
+                  ? "Follow-up message if they don't reply…"
+                  : "Write your message…"
+              }
+              rows={7}
+              className="w-full text-sm text-gray-800 focus:outline-none resize-none placeholder-gray-300 leading-relaxed"
+            />
+            {body.length > 0 && (
+              <div className="absolute bottom-2 right-3 text-[10px] text-gray-300 select-none">
+                {body.split(/\s+/).filter(Boolean).length} words · {body.length} chars
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Attachments */}

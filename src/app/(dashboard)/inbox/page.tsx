@@ -513,6 +513,12 @@ export default function InboxPage() {
             thread={selected}
             onBack={() => setSelected(null)}
             onToggleStar={toggleStar}
+            onArchive={archive}
+            onDelete={(id) => {
+              setThreads((prev) => prev.filter((t) => t.id !== id));
+              setSelected(null);
+              toast.show("Email deleted", "info");
+            }}
           />
         </div>
       ) : (

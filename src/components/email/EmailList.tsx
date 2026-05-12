@@ -223,8 +223,21 @@ export function EmailList({
                 </p>
               </div>
 
-              <p className="text-xs text-gray-400 truncate">
-                <Highlight text={thread.lastMessage.preview} query={searchQuery} />
+              <p className="text-xs truncate flex items-center gap-1">
+                {thread.aiSummary && (
+                  <span className="inline-flex flex-shrink-0 w-3.5 h-3.5 bg-blue-600 rounded items-center justify-center">
+                    <svg className="w-2 h-2 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </span>
+                )}
+                <span className={thread.aiSummary ? "text-blue-700" : "text-gray-400"}>
+                  {thread.aiSummary ? (
+                    thread.aiSummary
+                  ) : (
+                    <Highlight text={thread.lastMessage.preview} query={searchQuery} />
+                  )}
+                </span>
               </p>
             </div>
 

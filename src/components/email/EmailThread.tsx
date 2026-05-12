@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { EmailThread as EmailThreadType, EmailMessage, getInitials, getAvatarColor } from "@/lib/mock-data";
+import { EmailThread as EmailThreadType, EmailMessage, AIReplies, getInitials, getAvatarColor } from "@/lib/mock-data";
 import { ComposeModal } from "@/components/compose/ComposeModal";
 import { Button } from "@/components/ui/Button";
 
@@ -475,6 +475,56 @@ function printThread(thread: EmailThreadType) {
   win.print();
 }
 
+const TONE_META: Record<keyof AIReplies, { label: string; chipClass: string }> = {
+  positive: {
+    label: "Positive",
+    chipClass: "border-green-200 text-green-700 hover:bg-green-50 hover:border-green-400",
+  },
+  neutral: {
+    label: "Neutral",
+    chipClass: "border-gray-200 text-gray-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600",
+  },
+  negative: {
+    label: "Decline",
+    chipClass: "border-red-100 text-red-600 hover:bg-red-50 hover:border-red-300",
+  },
+};
+
+function AiReplyDrafts({
+  replies,
+  onSelect,
+}: {
+  replies: AIReplies;
+  onSelect: (body: string) => void;
+}) {
+  return (
+    <div className="space-y-1 pb-1">
+      <div className="flex items-center gap-1.5">
+        <div className="flex-shrink-0 w-4 h-4 bg-blue-600 rounded flex items-center justify-center">
+          <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+        <span className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide">
+          AI Drafts
+        </span>
+      </div>
+      <div className="flex flex-col gap-1">
+        {(Object.keys(TONE_META) as (keyof AIReplies)[]).map((tone) => (
+          <button
+            key={tone}
+            onClick={() => onSelect(replies[tone])}
+            className={`w-full text-left text-xs bg-white border rounded-lg px-3 py-2 transition-colors ${TONE_META[tone].chipClass}`}
+          >
+            <span className="font-semibold mr-1.5">{TONE_META[tone].label}:</span>
+            <span className="text-gray-500">{replies[tone]}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function getQuickReplies(lastBody: string, subject: string): string[] {
   const lower = (lastBody + " " + subject).toLowerCase();
   if (lower.includes("available") || lower.includes("free") || lower.includes("chat") || lower.includes("sync") || lower.includes("call")) {
@@ -695,21 +745,26 @@ export function EmailThreadView({ thread, onBack, onToggleStar, onArchive, onDel
           Reply to {thread.lastMessage.from}…
         </button>
 
-        {/* AI quick reply suggestions */}
-        <div className="flex items-center gap-1.5 flex-wrap pb-1">
-          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide flex-shrink-0">
-            AI
-          </span>
-          {quickReplies.map((suggestion) => (
-            <button
-              key={suggestion}
-              onClick={() => openCompose("reply", suggestion)}
-              className="text-xs text-gray-600 bg-white border border-gray-200 rounded-full px-2.5 py-1 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-colors truncate max-w-[200px]"
-            >
-              {suggestion}
-            </button>
-          ))}
-        </div>
+        {/* AI tone-based reply drafts */}
+        {thread.aiReplies ? (
+          <AiReplyDrafts replies={thread.aiReplies} onSelect={(body) => openCompose("reply", body)} />
+        ) : (
+          /* Fallback: keyword-matched quick suggestions while AI loads */
+          <div className="flex items-center gap-1.5 flex-wrap pb-1">
+            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide flex-shrink-0">
+              AI
+            </span>
+            {quickReplies.map((suggestion) => (
+              <button
+                key={suggestion}
+                onClick={() => openCompose("reply", suggestion)}
+                className="text-xs text-gray-600 bg-white border border-gray-200 rounded-full px-2.5 py-1 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-colors truncate max-w-[200px]"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <ComposeModal

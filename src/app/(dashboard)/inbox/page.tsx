@@ -121,7 +121,26 @@ export default function InboxPage() {
         }
         const data = await res.json();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setThreads((data.threads ?? []).map((t: any) => deserializeThread(t)));
+        const loaded: EmailThread[] = (data.threads ?? []).map((t: any) => deserializeThread(t));
+        setThreads(loaded);
+
+        // Backfill any previously cached AI summaries without blocking inbox render
+        if (loaded.length > 0) {
+          const ids = loaded.map((t) => t.id).join(",");
+          fetch(`/api/ai/summaries?threadIds=${encodeURIComponent(ids)}`)
+            .then((r) => r.json())
+            .then((aiData: { summaries?: Record<string, string> }) => {
+              if (!aiData.summaries) return;
+              setThreads((prev) =>
+                prev.map((t) =>
+                  aiData.summaries![t.id]
+                    ? { ...t, aiSummary: aiData.summaries![t.id] }
+                    : t
+                )
+              );
+            })
+            .catch(() => {/* non-critical — inbox still works without summaries */});
+        }
       } catch {
         setFetchError("Network error. Showing demo data instead.");
         setThreads(MOCK_THREADS);
@@ -330,24 +349,48 @@ export default function InboxPage() {
 
     // Skip full-fetch if thread already has real message bodies
     const hasBody = thread.messages.some((m) => m.body && m.body.length > 0);
-    if (hasBody) return;
-
-    setThreadDetailLoading(true);
-    try {
-      const res = await fetch(`/api/gmail/threads/${thread.id}`);
-      if (res.ok) {
-        const data = await res.json();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const full: EmailThread = deserializeThread(data.thread as any);
-        setThreads((prev) =>
-          prev.map((t) => (t.id === full.id ? { ...full, unread: false } : t))
-        );
-        setSelected({ ...full, unread: false });
+    if (!hasBody) {
+      setThreadDetailLoading(true);
+      try {
+        const res = await fetch(`/api/gmail/threads/${thread.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const full: EmailThread = deserializeThread(data.thread as any);
+          setThreads((prev) =>
+            prev.map((t) => (t.id === full.id ? { ...full, unread: false } : t))
+          );
+          setSelected((prev) =>
+            prev?.id === full.id ? { ...full, unread: false, aiSummary: prev.aiSummary, aiReplies: prev.aiReplies } : prev
+          );
+        }
+      } catch {
+        // Thread detail fetch failed — preview content still shows
+      } finally {
+        setThreadDetailLoading(false);
       }
-    } catch {
-      // Thread detail fetch failed — preview content still shows
-    } finally {
-      setThreadDetailLoading(false);
+    }
+
+    // Fetch AI summary + replies (skip if already populated from cache)
+    if (!thread.aiSummary || !thread.aiReplies) {
+      fetch(`/api/ai/${thread.id}`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((aiData: { summary?: string; replies?: { positive: string; neutral: string; negative: string } } | null) => {
+          if (!aiData?.summary) return;
+          setThreads((prev) =>
+            prev.map((t) =>
+              t.id === thread.id
+                ? { ...t, aiSummary: aiData.summary, aiReplies: aiData.replies }
+                : t
+            )
+          );
+          setSelected((prev) =>
+            prev?.id === thread.id
+              ? { ...prev, aiSummary: aiData.summary, aiReplies: aiData.replies }
+              : prev
+          );
+        })
+        .catch(() => {/* non-critical — inbox works without AI content */});
     }
   }
 

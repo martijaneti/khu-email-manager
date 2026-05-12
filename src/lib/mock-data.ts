@@ -1,3 +1,9 @@
+export interface AIReplies {
+  positive: string;
+  neutral: string;
+  negative: string;
+}
+
 export interface EmailThread {
   id: string;
   subject: string;
@@ -15,6 +21,7 @@ export interface EmailThread {
   labels: string[];
   hasAttachments: boolean;
   aiSummary?: string;
+  aiReplies?: AIReplies;
 }
 
 export interface EmailMessage {

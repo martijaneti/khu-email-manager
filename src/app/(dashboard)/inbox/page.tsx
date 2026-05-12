@@ -185,6 +185,11 @@ export default function InboxPage() {
     [threads, selected, toast]
   );
 
+  const updateLabels = useCallback((id: string, labels: string[]) => {
+    setThreads((prev) => prev.map((t) => (t.id === id ? { ...t, labels } : t)));
+    setSelected((prev) => prev?.id === id ? { ...prev, labels } : prev);
+  }, []);
+
   const archiveBulk = useCallback(() => {
     const ids = Array.from(checkedIds);
     const count = ids.length;
@@ -328,6 +333,19 @@ export default function InboxPage() {
           filtered.slice(startIdx).find((t) => t.unread) ??
           filtered.slice(0, startIdx).find((t) => t.unread);
         if (nextUnread) handleSelect(nextUnread);
+      },
+    },
+    {
+      key: "i",
+      description: "Toggle important",
+      handler: () => {
+        if (!selected) return;
+        const has = selected.labels.includes("important");
+        const newLabels = has
+          ? selected.labels.filter((l) => l !== "important")
+          : [...selected.labels, "important"];
+        updateLabels(selected.id, newLabels);
+        toast.show(has ? "Removed important label" : "Marked as important", "success");
       },
     },
     {
@@ -523,6 +541,7 @@ export default function InboxPage() {
               setSelected(null);
               toast.show("Email deleted", "info");
             }}
+            onUpdateLabels={updateLabels}
           />
         </div>
       ) : (

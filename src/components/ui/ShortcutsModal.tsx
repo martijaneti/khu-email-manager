@@ -24,12 +24,14 @@ const SHORTCUT_GROUPS = [
       { keys: ["e"], desc: "Archive" },
       { keys: ["s"], desc: "Star / unstar" },
       { keys: ["u"], desc: "Mark unread" },
+      { keys: ["i"], desc: "Toggle important" },
     ],
   },
   {
     title: "Compose",
     shortcuts: [
       { keys: ["c"], desc: "New email" },
+      { keys: ["Ctrl", "↵"], desc: "Send email (in compose)" },
       { keys: ["?"], desc: "Show shortcuts" },
     ],
   },

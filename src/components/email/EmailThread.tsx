@@ -51,12 +51,87 @@ function MoreActionsMenu({ thread, onArchive, onDelete }: {
   );
 }
 
+const LABEL_OPTIONS: { value: string; label: string; color: string }[] = [
+  { value: "important", label: "Important", color: "bg-amber-100 text-amber-700 border-amber-200" },
+  { value: "work", label: "Work", color: "bg-blue-100 text-blue-700 border-blue-200" },
+  { value: "personal", label: "Personal", color: "bg-green-100 text-green-700 border-green-200" },
+  { value: "finance", label: "Finance", color: "bg-purple-100 text-purple-700 border-purple-200" },
+  { value: "travel", label: "Travel", color: "bg-sky-100 text-sky-700 border-sky-200" },
+];
+
+function getLabelMeta(value: string) {
+  return LABEL_OPTIONS.find((l) => l.value === value) ?? { value, label: value, color: "bg-gray-100 text-gray-600 border-gray-200" };
+}
+
+function LabelManager({
+  labels,
+  onChange,
+}: {
+  labels: string[];
+  onChange: (labels: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {labels.map((l) => {
+        const meta = getLabelMeta(l);
+        return (
+          <span key={l} className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border ${meta.color}`}>
+            {meta.label}
+            <button
+              onClick={() => onChange(labels.filter((x) => x !== l))}
+              className="opacity-60 hover:opacity-100 transition-opacity"
+              aria-label={`Remove ${meta.label}`}
+            >
+              <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </span>
+        );
+      })}
+
+      <div className="relative">
+        <button
+          onClick={() => setOpen((v) => !v)}
+          title="Add label"
+          className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors text-xs"
+        >
+          +
+        </button>
+        {open && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+            <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-36 overflow-hidden">
+              {LABEL_OPTIONS.filter((o) => !labels.includes(o.value)).map((o) => (
+                <button
+                  key={o.value}
+                  onClick={() => { onChange([...labels, o.value]); setOpen(false); }}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors text-left"
+                >
+                  <span className={`w-2 h-2 rounded-full ${o.color.split(" ")[0]}`} />
+                  {o.label}
+                </button>
+              ))}
+              {LABEL_OPTIONS.every((o) => labels.includes(o.value)) && (
+                <p className="px-3 py-2 text-xs text-gray-400">All labels applied</p>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface EmailThreadProps {
   thread: EmailThreadType;
   onBack?: () => void;
   onToggleStar?: (id: string) => void;
   onArchive?: (id: string) => void;
   onDelete?: (id: string) => void;
+  onUpdateLabels?: (id: string, labels: string[]) => void;
 }
 
 function CopyButton({ text }: { text: string }) {
@@ -311,7 +386,7 @@ function getQuickReplies(lastBody: string, subject: string): string[] {
   return ["Thanks for reaching out!", "Noted, I'll get back to you soon.", "Sounds good!"];
 }
 
-export function EmailThreadView({ thread, onBack, onToggleStar, onArchive, onDelete }: EmailThreadProps) {
+export function EmailThreadView({ thread, onBack, onToggleStar, onArchive, onDelete, onUpdateLabels }: EmailThreadProps) {
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeMode, setComposeMode] = useState<"reply" | "scheduled" | "followup" | "new">("reply");
   const [forwardTo, setForwardTo] = useState<{ email: string; name: string; subject: string; threadId?: string } | undefined>();
@@ -416,6 +491,16 @@ export function EmailThreadView({ thread, onBack, onToggleStar, onArchive, onDel
           <MoreActionsMenu thread={thread} onArchive={onArchive} onDelete={onDelete} />
         </div>
       </div>
+
+      {/* Labels row */}
+      {onUpdateLabels && (
+        <div className="px-5 pt-2 pb-1">
+          <LabelManager
+            labels={thread.labels}
+            onChange={(newLabels) => onUpdateLabels(thread.id, newLabels)}
+          />
+        </div>
+      )}
 
       {/* Unsubscribe banner */}
       {hasUnsubscribeLink(thread.lastMessage.body) && (

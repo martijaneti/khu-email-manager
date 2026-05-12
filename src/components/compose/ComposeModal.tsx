@@ -414,6 +414,12 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBo
               ref={textareaRef}
               value={body}
               onChange={(e) => setBody(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+                  e.preventDefault();
+                  if (body.trim() && countdown === null && !sent) handleSend();
+                }
+              }}
               placeholder={
                 mode === "followup"
                   ? "Follow-up message if they don't reply…"

@@ -412,6 +412,7 @@ export default function InboxPage() {
               threads={filtered}
               selectedId={selected?.id ?? null}
               checkedIds={checkedIds}
+              searchQuery={search}
               onSelect={handleSelect}
               onToggleCheck={toggleCheck}
               onToggleStar={toggleStar}

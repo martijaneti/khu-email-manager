@@ -9,10 +9,24 @@ interface EmptyState {
   subtitle: string;
 }
 
+function Highlight({ text, query }: { text: string; query: string }) {
+  if (!query.trim()) return <>{text}</>;
+  const idx = text.toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="bg-yellow-100 text-yellow-900 rounded-sm px-0.5">{text.slice(idx, idx + query.length)}</mark>
+      {text.slice(idx + query.length)}
+    </>
+  );
+}
+
 interface EmailListProps {
   threads: EmailThread[];
   selectedId: string | null;
   checkedIds?: Set<string>;
+  searchQuery?: string;
   onSelect: (thread: EmailThread) => void;
   onToggleCheck?: (id: string) => void;
   onToggleStar?: (id: string) => void;
@@ -45,6 +59,7 @@ export function EmailList({
   threads,
   selectedId,
   checkedIds,
+  searchQuery = "",
   onSelect,
   onToggleCheck,
   onToggleStar,
@@ -120,7 +135,7 @@ export function EmailList({
                     thread.unread ? "font-semibold text-gray-900" : "font-medium text-gray-700"
                   }`}
                 >
-                  {thread.lastMessage.from}
+                  <Highlight text={thread.lastMessage.from} query={searchQuery} />
                 </span>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   {thread.hasAttachments && <PaperclipIcon />}
@@ -135,10 +150,12 @@ export function EmailList({
                   thread.unread ? "font-medium text-gray-800" : "text-gray-600"
                 }`}
               >
-                {thread.subject}
+                <Highlight text={thread.subject} query={searchQuery} />
               </p>
 
-              <p className="text-xs text-gray-400 truncate">{thread.lastMessage.preview}</p>
+              <p className="text-xs text-gray-400 truncate">
+                <Highlight text={thread.lastMessage.preview} query={searchQuery} />
+              </p>
             </div>
 
             {/* Right: unread dot + hover actions */}

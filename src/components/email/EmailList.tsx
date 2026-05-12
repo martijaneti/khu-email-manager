@@ -1,12 +1,15 @@
 "use client";
 
 import { EmailThread, formatRelativeTime, getInitials, getAvatarColor } from "@/lib/mock-data";
+import { useToast } from "@/context/ToastContext";
 
 interface EmailListProps {
   threads: EmailThread[];
   selectedId: string | null;
   onSelect: (thread: EmailThread) => void;
   onToggleStar?: (id: string) => void;
+  onArchive?: (id: string) => void;
+  onToggleRead?: (id: string) => void;
 }
 
 function PaperclipIcon() {
@@ -23,13 +26,22 @@ function StarIcon({ filled }: { filled?: boolean }) {
       <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
     </svg>
   ) : (
-    <svg className="w-4 h-4 text-gray-300 hover:text-amber-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
     </svg>
   );
 }
 
-export function EmailList({ threads, selectedId, onSelect, onToggleStar }: EmailListProps) {
+export function EmailList({
+  threads,
+  selectedId,
+  onSelect,
+  onToggleStar,
+  onArchive,
+  onToggleRead,
+}: EmailListProps) {
+  const toast = useToast();
+
   if (threads.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full py-20 text-center px-6">
@@ -92,22 +104,88 @@ export function EmailList({ threads, selectedId, onSelect, onToggleStar }: Email
               <p className="text-xs text-gray-400 truncate">{thread.lastMessage.preview}</p>
             </div>
 
-            {/* Right column — unread dot + star */}
-            <div className="flex flex-col items-center gap-2 flex-shrink-0 mt-1">
+            {/* Right: unread dot + hover actions */}
+            <div className="flex flex-col items-center gap-1.5 flex-shrink-0 mt-1">
               {thread.unread && (
-                <div className="w-2 h-2 bg-blue-500 rounded-full" />
+                <div className="w-2 h-2 bg-blue-500 rounded-full group-hover:hidden" />
               )}
-              {onToggleStar && (
-                <button
-                  className={`opacity-0 group-hover:opacity-100 transition-opacity ${thread.starred ? "opacity-100" : ""}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleStar(thread.id);
-                  }}
-                  aria-label={thread.starred ? "Unstar" : "Star"}
-                >
-                  <StarIcon filled={thread.starred} />
-                </button>
+
+              {/* Hover quick-action row */}
+              <div className="hidden group-hover:flex items-center gap-0.5">
+                {/* Star */}
+                {onToggleStar && (
+                  <button
+                    title={thread.starred ? "Unstar" : "Star"}
+                    className={`p-1.5 rounded-md transition-colors ${
+                      thread.starred
+                        ? "text-amber-400"
+                        : "text-gray-300 hover:text-amber-400 hover:bg-amber-50"
+                    }`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleStar(thread.id);
+                      toast.show(
+                        thread.starred ? "Removed from starred" : "Added to starred",
+                        "success"
+                      );
+                    }}
+                  >
+                    <StarIcon filled={thread.starred} />
+                  </button>
+                )}
+
+                {/* Mark read/unread */}
+                {onToggleRead && (
+                  <button
+                    title={thread.unread ? "Mark as read" : "Mark as unread"}
+                    className="p-1.5 rounded-md text-gray-300 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleRead(thread.id);
+                      toast.show(thread.unread ? "Marked as read" : "Marked as unread", "info");
+                    }}
+                  >
+                    {thread.unread ? (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <circle cx="17" cy="8" r="4" className="fill-blue-500" />
+                        <path fill="none" stroke="currentColor" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                    )}
+                  </button>
+                )}
+
+                {/* Archive */}
+                {onArchive && (
+                  <button
+                    title="Archive"
+                    className="p-1.5 rounded-md text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onArchive(thread.id);
+                      toast.show("Archived", "info", {
+                        label: "Undo",
+                        onClick: () => {
+                          // undo is handled by the parent
+                        },
+                      });
+                    }}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
+              {/* Star always visible if starred (not hovered) */}
+              {thread.starred && (
+                <div className="group-hover:hidden">
+                  <StarIcon filled />
+                </div>
               )}
             </div>
           </div>

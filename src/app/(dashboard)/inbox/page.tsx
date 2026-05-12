@@ -1,23 +1,38 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EmailList } from "@/components/email/EmailList";
+import { EmailListSkeleton } from "@/components/email/EmailListSkeleton";
 import { EmailThreadView } from "@/components/email/EmailThread";
 import { ComposeModal } from "@/components/compose/ComposeModal";
 import { ShortcutsModal } from "@/components/ui/ShortcutsModal";
 import { Button } from "@/components/ui/Button";
 import { MOCK_THREADS, EmailThread } from "@/lib/mock-data";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { useToast } from "@/context/ToastContext";
 
 type FilterTab = "all" | "unread" | "attachments" | "starred";
 
 export default function InboxPage() {
-  const [threads, setThreads] = useState<EmailThread[]>(MOCK_THREADS);
+  const toast = useToast();
+  const [threads, setThreads] = useState<EmailThread[]>([]);
+  const [archived, setArchived] = useState<EmailThread[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<EmailThread | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
+  const archiveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  // Simulate loading delay for skeleton demo
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setThreads(MOCK_THREADS);
+      setLoading(false);
+    }, 600);
+    return () => clearTimeout(t);
+  }, []);
 
   const filtered = useMemo(() => {
     let result = threads;
@@ -41,26 +56,64 @@ export default function InboxPage() {
     [filtered, selected]
   );
 
-  function toggleStar(id: string) {
+  const toggleStar = useCallback((id: string) => {
     setThreads((prev) =>
       prev.map((t) => (t.id === id ? { ...t, starred: !t.starred } : t))
     );
-    if (selected?.id === id) {
-      setSelected((prev) => prev ? { ...prev, starred: !prev.starred } : prev);
-    }
-  }
+    setSelected((prev) => prev?.id === id ? { ...prev, starred: !prev.starred } : prev);
+  }, []);
 
-  function markRead(id: string) {
+  const toggleRead = useCallback((id: string) => {
+    setThreads((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, unread: !t.unread } : t))
+    );
+  }, []);
+
+  const markRead = useCallback((id: string) => {
     setThreads((prev) =>
       prev.map((t) => (t.id === id ? { ...t, unread: false } : t))
     );
-  }
+  }, []);
 
-  function markUnread(id: string) {
-    setThreads((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, unread: true } : t))
-    );
-  }
+  const archive = useCallback(
+    (id: string) => {
+      const thread = threads.find((t) => t.id === id);
+      if (!thread) return;
+
+      // Remove from inbox
+      setThreads((prev) => prev.filter((t) => t.id !== id));
+      setArchived((prev) => [thread, ...prev]);
+      if (selected?.id === id) setSelected(null);
+
+      // Auto-purge archive entry after 10s (undo window)
+      const timer = setTimeout(() => {
+        setArchived((prev) => prev.filter((t) => t.id !== id));
+        archiveTimers.current.delete(id);
+      }, 10000);
+      archiveTimers.current.set(id, timer);
+
+      toast.show("Archived", "info", {
+        label: "Undo",
+        onClick: () => {
+          // Cancel purge timer and restore
+          const t = archiveTimers.current.get(id);
+          if (t) {
+            clearTimeout(t);
+            archiveTimers.current.delete(id);
+          }
+          setArchived((prev) => prev.filter((t) => t.id !== id));
+          setThreads((prev) => {
+            if (prev.find((t) => t.id === id)) return prev;
+            return [thread, ...prev].sort(
+              (a, b) => b.lastMessage.date.getTime() - a.lastMessage.date.getTime()
+            );
+          });
+          toast.show("Restored to inbox", "success");
+        },
+      });
+    },
+    [threads, selected, toast]
+  );
 
   function handleSelect(thread: EmailThread) {
     setSelected(thread);
@@ -70,19 +123,17 @@ export default function InboxPage() {
   const unreadCount = threads.filter((t) => t.unread).length;
   const starredCount = threads.filter((t) => t.starred).length;
 
-  // Browser tab title
   useEffect(() => {
     document.title = unreadCount > 0 ? `(${unreadCount}) KHU Mail` : "KHU Mail";
   }, [unreadCount]);
 
-  // Keyboard shortcuts
   useKeyboardShortcuts([
     {
       key: "j",
       description: "Next email",
       handler: () => {
-        if (filtered.length === 0) return;
-        const next = selectedIdx < filtered.length - 1 ? filtered[selectedIdx + 1] : filtered[0];
+        if (!filtered.length) return;
+        const next = filtered[selectedIdx < filtered.length - 1 ? selectedIdx + 1 : 0];
         handleSelect(next);
       },
     },
@@ -90,23 +141,24 @@ export default function InboxPage() {
       key: "k",
       description: "Previous email",
       handler: () => {
-        if (filtered.length === 0) return;
-        const prev = selectedIdx > 0 ? filtered[selectedIdx - 1] : filtered[filtered.length - 1];
+        if (!filtered.length) return;
+        const prev = filtered[selectedIdx > 0 ? selectedIdx - 1 : filtered.length - 1];
         handleSelect(prev);
       },
     },
     {
       key: "r",
       description: "Reply",
-      handler: () => {
-        if (selected) setComposeOpen(true);
-      },
+      handler: () => { if (selected) setComposeOpen(true); },
     },
     {
       key: "s",
       description: "Star / unstar",
       handler: () => {
-        if (selected) toggleStar(selected.id);
+        if (selected) {
+          toggleStar(selected.id);
+          toast.show(selected.starred ? "Removed from starred" : "Added to starred", "success");
+        }
       },
     },
     {
@@ -114,9 +166,15 @@ export default function InboxPage() {
       description: "Mark unread",
       handler: () => {
         if (selected) {
-          markUnread(selected.id);
+          toggleRead(selected.id);
+          toast.show("Marked as unread", "info");
         }
       },
+    },
+    {
+      key: "e",
+      description: "Archive",
+      handler: () => { if (selected) archive(selected.id); },
     },
     {
       key: "Escape",
@@ -130,7 +188,7 @@ export default function InboxPage() {
     },
     {
       key: "?",
-      description: "Show shortcuts",
+      description: "Shortcuts",
       handler: () => setShortcutsOpen(true),
     },
   ]);
@@ -147,7 +205,9 @@ export default function InboxPage() {
       {/* List panel */}
       <div
         className={`flex flex-col border-r border-gray-200 bg-white ${
-          selected ? "hidden md:flex w-80 lg:w-96 xl:w-[420px]" : "flex w-full md:w-80 lg:w-96 xl:w-[420px]"
+          selected
+            ? "hidden md:flex w-80 lg:w-96 xl:w-[420px]"
+            : "flex w-full md:w-80 lg:w-96 xl:w-[420px]"
         }`}
       >
         {/* Header */}
@@ -158,8 +218,8 @@ export default function InboxPage() {
               <button
                 onClick={() => setShortcutsOpen(true)}
                 className="text-gray-300 hover:text-gray-500 transition-colors"
-                aria-label="Keyboard shortcuts"
                 title="Keyboard shortcuts (?)"
+                aria-label="Show keyboard shortcuts"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -196,7 +256,7 @@ export default function InboxPage() {
           </div>
 
           {/* Filter tabs */}
-          <div className="flex gap-0 overflow-x-auto">
+          <div className="flex overflow-x-auto">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
@@ -218,19 +278,25 @@ export default function InboxPage() {
           </div>
         </div>
 
-        {search && (
+        {search && !loading && (
           <div className="px-4 py-2 text-xs text-gray-400 border-b border-gray-100">
             {filtered.length} result{filtered.length !== 1 ? "s" : ""} for &ldquo;{search}&rdquo;
           </div>
         )}
 
         <div className="flex-1 overflow-y-auto">
-          <EmailList
-            threads={filtered}
-            selectedId={selected?.id ?? null}
-            onSelect={handleSelect}
-            onToggleStar={toggleStar}
-          />
+          {loading ? (
+            <EmailListSkeleton count={6} />
+          ) : (
+            <EmailList
+              threads={filtered}
+              selectedId={selected?.id ?? null}
+              onSelect={handleSelect}
+              onToggleStar={toggleStar}
+              onArchive={archive}
+              onToggleRead={toggleRead}
+            />
+          )}
         </div>
       </div>
 
@@ -248,7 +314,11 @@ export default function InboxPage() {
           <div className="text-center">
             <div className="text-4xl mb-3">✉️</div>
             <p className="text-gray-400 text-sm">Select an email to read</p>
-            <p className="text-gray-400 text-xs mt-1">Press <kbd className="px-1 py-0.5 bg-gray-200 rounded text-xs">?</kbd> for shortcuts</p>
+            <p className="text-gray-400 text-xs mt-1">
+              Press{" "}
+              <kbd className="px-1 py-0.5 bg-gray-200 rounded text-xs font-mono">?</kbd>{" "}
+              for shortcuts
+            </p>
           </div>
         </div>
       )}

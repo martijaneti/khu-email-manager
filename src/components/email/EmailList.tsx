@@ -2,6 +2,7 @@
 
 import { EmailThread, formatRelativeTime, getInitials, getAvatarColor } from "@/lib/mock-data";
 import { useToast } from "@/context/ToastContext";
+import { SwipeableRow } from "./SwipeableRow";
 
 interface EmptyState {
   icon: string;
@@ -120,8 +121,15 @@ export function EmailList({
         const avatarColor = getAvatarColor(thread.lastMessage.from);
 
         return (
-          <div
+          <SwipeableRow
             key={thread.id}
+            onSwipeLeft={onArchive ? () => onArchive(thread.id) : undefined}
+            onSwipeRight={onToggleStar ? () => {
+              onToggleStar(thread.id);
+              toast.show(thread.starred ? "Removed from starred" : "Added to starred", "success");
+            } : undefined}
+          >
+          <div
             className={`relative flex gap-3 items-start px-4 py-3.5 cursor-pointer transition-colors group ${
               isChecked
                 ? "bg-blue-50"
@@ -273,6 +281,7 @@ export function EmailList({
               )}
             </div>
           </div>
+          </SwipeableRow>
         );
       })}
         </div>

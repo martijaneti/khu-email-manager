@@ -363,8 +363,8 @@ function MessageItem({
 
       {isExpanded && (
         <>
-          <div className="ml-11 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-            {msg.body}
+          <div className="ml-11">
+            <RenderBody body={msg.body} />
           </div>
 
           {msg.attachments && msg.attachments.length > 0 && (
@@ -380,6 +380,54 @@ function MessageItem({
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function renderInline(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  const re = /(\*\*(.+?)\*\*|_(.+?)_|\[(.+?)\]\((.+?)\))/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) parts.push(text.slice(last, m.index));
+    if (m[0].startsWith("**")) parts.push(<strong key={m.index}>{m[2]}</strong>);
+    else if (m[0].startsWith("_")) parts.push(<em key={m.index}>{m[3]}</em>);
+    else parts.push(<a key={m.index} href={m[5]} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800">{m[4]}</a>);
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
+}
+
+function RenderBody({ body }: { body: string }) {
+  const lines = body.split("\n");
+  return (
+    <div className="text-sm text-gray-700 leading-relaxed space-y-0.5">
+      {lines.map((line, i) => {
+        if (/^---+$/.test(line.trim())) {
+          return <hr key={i} className="border-gray-200 my-2" />;
+        }
+        if (/^[•\-\*] /.test(line.trim())) {
+          return (
+            <div key={i} className="flex gap-2">
+              <span className="text-gray-400 flex-shrink-0">•</span>
+              <span>{renderInline(line.replace(/^[•\-\*] /, ""))}</span>
+            </div>
+          );
+        }
+        if (/^\d+\. /.test(line.trim())) {
+          const num = line.match(/^(\d+)\. /)?.[1];
+          return (
+            <div key={i} className="flex gap-2">
+              <span className="text-gray-400 flex-shrink-0 w-4 text-right">{num}.</span>
+              <span>{renderInline(line.replace(/^\d+\. /, ""))}</span>
+            </div>
+          );
+        }
+        if (line.trim() === "") return <div key={i} className="h-2" />;
+        return <div key={i}>{renderInline(line)}</div>;
+      })}
     </div>
   );
 }

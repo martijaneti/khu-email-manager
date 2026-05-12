@@ -179,8 +179,10 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBo
     if (!open || sent) return;
     const timer = setTimeout(() => {
       try {
-        const data = { body, cc, bcc, ...(isNew ? { to, subject } : {}) };
-        if (body || cc || bcc || (isNew && (to || subject))) {
+        const resolvedTo = isNew ? to : (replyTo?.email ?? "");
+        const resolvedSubject = isNew ? subject : (replyTo ? `Re: ${replyTo.subject}` : "");
+        const data = { body, cc, bcc, to: resolvedTo, subject: resolvedSubject, savedAt: Date.now() };
+        if (body || cc || bcc || resolvedTo || resolvedSubject) {
           localStorage.setItem(draftKey(mode, replyTo?.threadId), JSON.stringify(data));
         }
       } catch {

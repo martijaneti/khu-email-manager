@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { EmailList } from "@/components/email/EmailList";
 import { EmailListSkeleton } from "@/components/email/EmailListSkeleton";
 import { EmailThreadView } from "@/components/email/EmailThread";
@@ -66,6 +67,7 @@ function usePanelResize() {
 }
 
 export default function InboxPage() {
+  const router = useRouter();
   const toast = useToast();
   const { setUnreadCount } = useInboxContext();
   const { listWidth, onDragStart } = usePanelResize();
@@ -438,6 +440,13 @@ export default function InboxPage() {
       description: "Shortcuts",
       handler: () => setShortcutsOpen(true),
     },
+    // g+key navigation chords (Gmail-style)
+    { key: "i", chord: "g", description: "Go to inbox", handler: () => router.push("/inbox") },
+    { key: "s", chord: "g", description: "Go to starred", handler: () => { router.push("/inbox"); setActiveTab("starred"); } },
+    { key: "d", chord: "g", description: "Go to drafts", handler: () => router.push("/drafts") },
+    { key: "t", chord: "g", description: "Go to sent", handler: () => router.push("/sent") },
+    { key: "c", chord: "g", description: "Go to contacts", handler: () => router.push("/contacts") },
+    { key: "/", chord: "g", description: "Go to search", handler: () => router.push("/search") },
   ]);
 
   const tabs: { id: FilterTab; label: string; count?: number }[] = [

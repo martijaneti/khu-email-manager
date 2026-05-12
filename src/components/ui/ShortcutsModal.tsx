@@ -35,6 +35,17 @@ const SHORTCUT_GROUPS = [
       { keys: ["?"], desc: "Show shortcuts" },
     ],
   },
+  {
+    title: "Go to (g + …)",
+    shortcuts: [
+      { keys: ["g", "i"], desc: "Inbox" },
+      { keys: ["g", "s"], desc: "Starred" },
+      { keys: ["g", "d"], desc: "Drafts" },
+      { keys: ["g", "t"], desc: "Sent" },
+      { keys: ["g", "c"], desc: "Contacts" },
+      { keys: ["g", "/"], desc: "Search" },
+    ],
+  },
 ];
 
 export function ShortcutsModal({ open, onClose }: ShortcutsModalProps) {

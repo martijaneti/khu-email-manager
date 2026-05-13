@@ -281,6 +281,12 @@ export default function InboxPage() {
     setSelected((prev) => prev?.id === id ? { ...prev, labels } : prev);
   }, []);
 
+  const markReplied = useCallback((id: string) => {
+    setThreads((prev) => prev.map((t) => (t.id === id ? { ...t, replied: true } : t)));
+    setSelected((prev) => prev?.id === id ? { ...prev, replied: true } : prev);
+    toast.show("Reply sent", "success");
+  }, [toast]);
+
   const archiveBulk = useCallback(() => {
     const ids = Array.from(checkedIds);
     const count = ids.length;
@@ -756,6 +762,7 @@ export default function InboxPage() {
             }}
             onSnooze={snooze}
             onUpdateLabels={updateLabels}
+            onReplied={markReplied}
           />
         </div>
       ) : (

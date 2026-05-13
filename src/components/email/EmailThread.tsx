@@ -178,6 +178,7 @@ interface EmailThreadProps {
   onDelete?: (id: string) => void;
   onSnooze?: (id: string, until: Date) => void;
   onUpdateLabels?: (id: string, labels: string[]) => void;
+  onReplied?: (threadId: string) => void;
 }
 
 function CopyButton({ text }: { text: string }) {
@@ -542,22 +543,24 @@ function getQuickReplies(lastBody: string, subject: string): string[] {
   return ["Thanks for reaching out!", "Noted, I'll get back to you soon.", "Sounds good!"];
 }
 
-export function EmailThreadView({ thread, onBack, onToggleStar, onArchive, onDelete, onSnooze, onUpdateLabels }: EmailThreadProps) {
+export function EmailThreadView({ thread, onBack, onToggleStar, onArchive, onDelete, onSnooze, onUpdateLabels, onReplied }: EmailThreadProps) {
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeMode, setComposeMode] = useState<"reply" | "scheduled" | "followup" | "new">("reply");
   const [forwardTo, setForwardTo] = useState<{ email: string; name: string; subject: string; threadId?: string } | undefined>();
   const [quickReplyBody, setQuickReplyBody] = useState<string | undefined>();
+  const [isAiDraft, setIsAiDraft] = useState(false);
   const [expandAll, setExpandAll] = useState<boolean | undefined>(undefined);
 
   const quickReplies = getQuickReplies(thread.lastMessage.body, thread.subject);
 
   const [replyAllTo, setReplyAllTo] = useState<string | undefined>();
 
-  function openCompose(mode: "reply" | "scheduled" | "followup", body?: string) {
+  function openCompose(mode: "reply" | "scheduled" | "followup", body?: string, aiDraft = false) {
     setComposeMode(mode);
     setForwardTo(undefined);
     setReplyAllTo(undefined);
     setQuickReplyBody(body);
+    setIsAiDraft(aiDraft);
     setComposeOpen(true);
   }
 
@@ -747,7 +750,7 @@ export function EmailThreadView({ thread, onBack, onToggleStar, onArchive, onDel
 
         {/* AI tone-based reply drafts */}
         {thread.aiReplies ? (
-          <AiReplyDrafts replies={thread.aiReplies} onSelect={(body) => openCompose("reply", body)} />
+          <AiReplyDrafts replies={thread.aiReplies} onSelect={(body) => openCompose("reply", body, true)} />
         ) : (
           /* Fallback: keyword-matched quick suggestions while AI loads */
           <div className="flex items-center gap-1.5 flex-wrap pb-1">
@@ -769,7 +772,7 @@ export function EmailThreadView({ thread, onBack, onToggleStar, onArchive, onDel
 
       <ComposeModal
         open={composeOpen}
-        onClose={() => { setComposeOpen(false); setQuickReplyBody(undefined); setReplyAllTo(undefined); }}
+        onClose={() => { setComposeOpen(false); setQuickReplyBody(undefined); setReplyAllTo(undefined); setIsAiDraft(false); }}
         mode={composeMode}
         replyTo={
           forwardTo ?? {
@@ -781,6 +784,10 @@ export function EmailThreadView({ thread, onBack, onToggleStar, onArchive, onDel
         }
         initialBody={quickReplyBody}
         initialCc={replyAllTo}
+        isAiDraft={isAiDraft}
+        onSent={(sentThreadId) => {
+          onReplied?.(sentThreadId ?? thread.id);
+        }}
       />
     </div>
   );

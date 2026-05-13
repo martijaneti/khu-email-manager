@@ -33,7 +33,6 @@ function insertFormatting(
   }
 
   onUpdate?.(newText);
-  // Restore cursor after React re-render
   requestAnimationFrame(() => {
     textarea.setSelectionRange(newStart, newEnd);
     textarea.focus();
@@ -80,6 +79,8 @@ interface ComposeModalProps {
   replyTo?: ReplyTo;
   initialBody?: string;
   initialCc?: string;
+  isAiDraft?: boolean;
+  onSent?: (threadId?: string) => void;
 }
 
 const FOLLOWUP_OPTIONS = [
@@ -125,7 +126,16 @@ function AttachmentRow({ att, onRemove }: { att: Attachment; onRemove: (id: stri
   );
 }
 
-export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBody, initialCc }: ComposeModalProps) {
+export function ComposeModal({
+  open,
+  onClose,
+  mode = "reply",
+  replyTo,
+  initialBody,
+  initialCc,
+  isAiDraft = false,
+  onSent,
+}: ComposeModalProps) {
   const isNew = mode === "new" || !replyTo;
 
   const [sendMode, setSendMode] = useState<"now" | "scheduled">(
@@ -145,7 +155,9 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBo
   const [body, setBody] = useState(initialBody ?? "");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [showCcBcc, setShowCcBcc] = useState(showCcInitial);
   const [draftRestored, setDraftRestored] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
@@ -156,7 +168,7 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBo
   // Restore draft on open (skip if quick reply body was provided)
   useEffect(() => {
     if (!open) return;
-    if (initialBody) return; // quick reply — don't restore draft
+    if (initialBody) return;
     try {
       const saved = localStorage.getItem(draftKey(mode, replyTo?.threadId));
       if (saved) {
@@ -222,14 +234,39 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBo
     setAttachments((prev) => prev.filter((a) => a.id !== id));
   }
 
-  // Countdown → send effect (decrements 1/s, triggers send at 0)
-  useEffect(() => {
-    if (countdown === null) return;
-    if (countdown <= 0) {
+  async function executeSend() {
+    setSending(true);
+    setSendError(null);
+    try {
+      const recipientEmail = isNew ? to : (replyTo?.email ?? "");
+      const sendSubject = isNew ? subject : (replyTo ? `Re: ${replyTo.subject}` : subject);
+
+      const res = await fetch("/api/gmail/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: recipientEmail,
+          subject: sendSubject,
+          body,
+          threadId: replyTo?.threadId,
+          cc: cc || undefined,
+          bcc: bcc || undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({})) as { message?: string };
+        throw new Error(errData.message ?? `Send failed (${res.status})`);
+      }
+
+      const result = await res.json() as { threadId?: string };
       clearDraft();
       setSent(true);
+      onSent?.(result.threadId ?? replyTo?.threadId);
+
       setTimeout(() => {
         setSent(false);
+        setSending(false);
         setCountdown(null);
         setBody("");
         setCc("");
@@ -238,6 +275,18 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBo
         setDraftRestored(false);
         onClose();
       }, 1400);
+    } catch (err) {
+      setSending(false);
+      setCountdown(null);
+      setSendError(err instanceof Error ? err.message : "Failed to send. Please try again.");
+    }
+  }
+
+  // Countdown → send effect
+  useEffect(() => {
+    if (countdown === null) return;
+    if (countdown <= 0) {
+      executeSend();
       return;
     }
     const timer = setTimeout(() => setCountdown((c) => (c !== null ? c - 1 : null)), 1000);
@@ -247,6 +296,7 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBo
 
   function handleSend() {
     if (!body.trim()) return;
+    setSendError(null);
     setCountdown(5);
   }
 
@@ -262,6 +312,7 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBo
     setBcc("");
     setAttachments([]);
     setDraftRestored(false);
+    setSendError(null);
     onClose();
   }
 
@@ -281,6 +332,8 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBo
   const isCounting = countdown !== null && countdown > 0;
   const sendLabel = sent
     ? "Sent!"
+    : sending
+    ? "Sending…"
     : isCounting
     ? `Sending in ${countdown}…`
     : sendMode === "now"
@@ -301,6 +354,34 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBo
               onClick={() => { setBody(""); setCc(""); setBcc(""); clearDraft(); setDraftRestored(false); }}
             >
               Discard draft
+            </button>
+          </div>
+        )}
+
+        {/* AI draft badge */}
+        {isAiDraft && (
+          <div className="flex items-center gap-2 text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+            <div className="flex-shrink-0 w-4 h-4 bg-blue-600 rounded flex items-center justify-center">
+              <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <span>AI-generated draft — review before sending</span>
+          </div>
+        )}
+
+        {/* Send error */}
+        {sendError && (
+          <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="flex-1">{sendError}</span>
+            <button
+              className="ml-auto text-red-600 hover:text-red-800 font-medium"
+              onClick={() => setSendError(null)}
+            >
+              Dismiss
             </button>
           </div>
         )}
@@ -421,7 +502,7 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBo
               onKeyDown={(e) => {
                 if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
                   e.preventDefault();
-                  if (body.trim() && countdown === null && !sent) handleSend();
+                  if (body.trim() && countdown === null && !sent && !sending) handleSend();
                 }
               }}
               placeholder={
@@ -430,7 +511,8 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBo
                   : "Write your message…"
               }
               rows={7}
-              className="w-full text-sm text-gray-800 focus:outline-none resize-none placeholder-gray-300 leading-relaxed"
+              disabled={isCounting || sending || sent}
+              className="w-full text-sm text-gray-800 focus:outline-none resize-none placeholder-gray-300 leading-relaxed disabled:opacity-60"
             />
             {body.length > 0 && (
               <div className="absolute bottom-2 right-3 text-[10px] text-gray-300 select-none">
@@ -537,9 +619,14 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBo
             />
           </div>
         )}
+        {/* Sending progress bar */}
+        {sending && !sent && (
+          <div className="relative overflow-hidden h-1 bg-gray-200">
+            <div className="absolute inset-y-0 left-0 bg-blue-400 animate-pulse w-full" />
+          </div>
+        )}
         <div className="px-5 py-3 flex items-center justify-between gap-3">
           {isCounting ? (
-            /* Countdown mode: show undo button */
             <div className="flex items-center gap-3 w-full">
               <span className="text-sm text-gray-600 flex-1">{sendLabel}</span>
               <Button variant="secondary" size="sm" onClick={handleUndo}>
@@ -560,6 +647,7 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBo
                   variant="ghost"
                   size="sm"
                   onClick={() => fileInputRef.current?.click()}
+                  disabled={sending || sent}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
@@ -574,19 +662,25 @@ export function ComposeModal({ open, onClose, mode = "reply", replyTo, initialBo
               </div>
 
               <div className="flex items-center gap-2">
-                <Button variant="secondary" size="sm" onClick={handleDiscard} disabled={sent}>
+                <Button variant="secondary" size="sm" onClick={handleDiscard} disabled={sending || sent}>
                   Discard
                 </Button>
                 <Button
                   variant={sent ? "secondary" : "primary"}
                   size="sm"
                   onClick={handleSend}
-                  disabled={sent || !body.trim()}
+                  disabled={sent || sending || !body.trim()}
                   className={sent ? "bg-green-600 text-white hover:bg-green-600" : ""}
                 >
                   {sent && (
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                  {sending && !sent && (
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
                     </svg>
                   )}
                   {sendLabel}

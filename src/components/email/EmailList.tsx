@@ -214,6 +214,14 @@ export function EmailList({
                     Important
                   </span>
                 )}
+                {thread.replied && (
+                  <span className="flex-shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 bg-green-100 text-green-700 rounded">
+                    <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                    </svg>
+                    Replied
+                  </span>
+                )}
                 <p
                   className={`text-xs truncate ${
                     thread.unread ? "font-medium text-gray-800" : "text-gray-600"

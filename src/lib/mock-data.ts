@@ -22,6 +22,7 @@ export interface EmailThread {
   hasAttachments: boolean;
   aiSummary?: string;
   aiReplies?: AIReplies;
+  replied?: boolean;
 }
 
 export interface EmailMessage {
